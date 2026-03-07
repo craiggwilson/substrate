@@ -1,0 +1,156 @@
+# AI Agent Instructions for Substrate
+
+This document provides guidance for AI agents working with the substrate codebase.
+
+## Project Overview
+
+Substrate is a Nix module framework for building flakes with modular, extensible configuration management. It is **not** tied to any specific module inclusion strategy - the tag-based finder is just one implementation of the finder interface.
+
+## Project Structure
+
+```
+substrate/
+├── default.nix          # Main entry point (build, substrateModules)
+├── flake.nix            # Standalone flake with test checks
+├── core/                # Core modules (always loaded)
+│   ├── checks.nix       # Configuration validation
+│   ├── finders.nix      # Module finder interface and "all" finder
+│   ├── hosts.nix        # Host configuration type
+│   ├── lib.nix          # Shared library functions
+│   ├── modules.nix      # Module tree type definition
+│   ├── outputs.nix      # Output builder registration
+│   ├── settings.nix     # Global settings
+│   └── users.nix        # User configuration type
+├── extensions/          # Optional extension modules
+│   ├── home-manager/    # Home Manager configuration builder
+│   ├── jail/            # Jail/container support
+│   ├── nixos/           # NixOS configuration builder
+│   ├── overlays/        # Overlay management
+│   ├── packages/        # Package definitions
+│   ├── shells/          # Development shells
+│   ├── tags/            # Tag-based module filtering
+│   └── types/           # Custom type definitions
+├── builders/            # Build system adapters
+│   └── flake-parts/     # flake-parts integration
+├── tests/               # Test suite
+│   ├── lib.nix          # Test utilities
+│   ├── core/            # Core module tests
+│   ├── extensions/      # Extension tests
+│   └── builders/        # Builder tests
+├── docs/                # Comprehensive documentation
+└── skills/              # AI agent skill files
+```
+
+## Key Concepts
+
+### Module Tree
+
+Modules are organized in a tree structure under `substrate.modules`. Leaf nodes contain class-specific configurations:
+
+```nix
+substrate.modules.programs.git = {
+  nixos = { ... };       # NixOS module
+  homeManager = { ... }; # Home Manager module
+  generic = { ... };     # Shared configuration
+};
+```
+
+### Finders
+
+Finders determine which modules to include in a configuration. The interface is:
+
+```nix
+substrate.finders.<name>.find = cfgs: [ ... ];
+```
+
+Where `cfgs` is a list of host/user configurations and the result is a list of matching modules.
+
+### Extensions
+
+Extensions add capabilities by:
+1. Defining new options under `substrate.settings`
+2. Adding output builders to `substrate.outputs`
+3. Registering new finders in `substrate.finders`
+4. Adding to `substrate.settings.supportedClasses`
+
+### Builders
+
+Builders integrate substrate with build systems. Currently only flake-parts is supported. The builder:
+1. Evaluates the substrate configuration
+2. Calls registered output builders
+3. Produces flake outputs
+
+## Nix Idioms Used
+
+- **Module system**: All configuration uses `lib.evalModules`
+- **Option types**: Extensive use of `lib.types.*` for validation
+- **Lazy evaluation**: Configuration is evaluated on-demand
+- **Attribute merging**: Multiple modules can contribute to the same option
+
+## Testing
+
+Tests use a custom test harness in `tests/lib.nix`:
+
+```nix
+let
+  testLib = import ../lib.nix { inherit pkgs; };
+  inherit (testLib) evalSubstrate runTests;
+in
+runTests "Test Suite Name" {
+  testName = {
+    check = /* boolean expression */;
+  };
+};
+```
+
+Run all tests:
+```bash
+nix flake check
+```
+
+## Common Tasks
+
+### Adding a New Extension
+
+1. Create `extensions/<name>/default.nix`
+2. Define options under `substrate.settings` or `substrate.<name>`
+3. Add output builders if needed
+4. Export from `default.nix` in `substrateModules`
+5. Add tests in `tests/extensions/<name>-test.nix`
+6. Register test in `flake.nix` checks
+
+### Adding a New Finder
+
+1. Create extension or modify existing one
+2. Register finder: `config.substrate.finders.<name>.find = cfgs: ...`
+3. Optionally set as default: `config.substrate.settings.modulesFinder = "<name>"`
+
+### Modifying Core Behavior
+
+1. Core modules are in `core/`
+2. Changes affect all configurations
+3. Ensure backward compatibility
+4. Update tests in `tests/core/`
+
+## Code Style
+
+- Follow Nix formatting conventions (use `nixfmt-rfc-style`)
+- Document options with `description`
+- Use `lib.mkOption` with proper types
+- Prefer composition over inheritance
+- Keep modules focused and single-purpose
+
+## Validation
+
+Before submitting changes:
+
+```bash
+# Format code
+nix fmt
+
+# Run tests
+nix flake check
+
+# Build to verify no evaluation errors
+nix build
+```
