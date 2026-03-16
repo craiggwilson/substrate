@@ -12,7 +12,7 @@ let
       _: usercfg:
       let
         userPkgs = import inputs.nixpkgs {
-          inherit (usercfg) system;
+          localSystem = usercfg.system;
           overlays = allOverlays;
         };
         extraArgs = slib.extraArgsGenerator {

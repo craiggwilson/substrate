@@ -86,7 +86,6 @@ let
         ];
       in
       inputs.nixpkgs.lib.nixosSystem {
-        inherit (hostcfg) system;
         specialArgs = {
           inherit inputs hostcfg;
         };
