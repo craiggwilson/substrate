@@ -16,6 +16,7 @@ in
     with-flake-parts = wrapBuilder (import ./builders/flake-parts/default.nix);
   };
   substrateModules = {
+    published-modules = import ./extensions/published-modules;
     home-manager = import ./extensions/home-manager;
     jail = import ./extensions/jail;
     nixos = import ./extensions/nixos;

@@ -12,19 +12,17 @@ let
           inherit lib inputs pkgs;
           inherit (pkgs) stdenv;
         };
-      }) settings.shells
+      }) settings.publish.shells
     );
 in
 {
-  options.substrate.settings = {
-    shells = lib.mkOption {
-      type = lib.types.listOf lib.types.path;
-      description = "List of paths to shell definitions (nix files that return a function taking pkgs and returning a derivation).";
-      default = [ ];
-    };
+  options.substrate.settings.publish.shells = lib.mkOption {
+    type = lib.types.listOf lib.types.path;
+    default = [ ];
+    description = "Paths to shell files to publish as devShells flake outputs.";
   };
 
-  config.substrate.outputs.devShells = lib.mkIf (settings.shells != [ ]) [
+  config.substrate.outputs.devShells = lib.mkIf (settings.publish.shells != [ ]) [
     {
       type = "per-system";
       build = { pkgs, inputs, ... }: mkShells { inherit pkgs inputs; };
