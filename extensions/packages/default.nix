@@ -14,10 +14,7 @@ let
     lib.listToAttrs (
       lib.map (path: {
         name = nameFromPath path;
-        value = import path {
-          inherit lib;
-          pkgs = final;
-        };
+        value = final.callPackage path { };
       }) settings.publish.packages
     );
 
