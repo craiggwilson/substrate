@@ -172,6 +172,10 @@ substrate.settings = {
 
   # Extra arguments passed to configurations
   extraArgsGenerators = [ ... ];
+
+  # Modules contributed to every host/user configuration (extensions push into these)
+  perHostContributors = [ ... ];
+  perUserContributors = [ ... ];
 };
 ```
 
@@ -224,3 +228,12 @@ Substrate is designed for extension:
 2. **New classes**: Add support for new configuration targets
 3. **New outputs**: Generate additional flake outputs
 4. **New options**: Add configuration options to hosts/users/modules
+5. **Module contributors**: Push modules into host or user builds via
+   `substrate.settings.perHostContributors` / `perUserContributors`. Each
+   contributor is a function that receives build context (`{ inputs, substrate,
+   hostname, hostcfg, userConfigs }` for hosts; `{ inputs, substrate, userName,
+   usercfg }` for users) and returns a list of modules. Builders consume these
+   without knowing which extension produced them, and extensions integrate with
+   builders without those builders being aware (e.g., the home-manager extension
+   registers a `perHostContributors` entry so NixOS hosts get `home-manager`
+   configuration without the nixos extension knowing about home-manager).

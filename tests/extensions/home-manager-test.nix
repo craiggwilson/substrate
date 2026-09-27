@@ -141,6 +141,71 @@ let
         in
         lib.elem "nixos" classes && lib.elem "homeManager" classes;
     };
+
+    # Test 9: core is implementation-agnostic (nixosModules only exists with the nixos extension)
+    coreHasNoNixosModules = {
+      check =
+        let
+          eval = evalSubstrateBase [ ];
+        in
+        !(eval.config.substrate.settings ? nixosModules);
+    };
+
+    # Test 10: perHostContributors defaults to empty without the extension
+    perHostContributorsDefaultEmpty = {
+      check =
+        let
+          eval = evalSubstrateBase [ ];
+        in
+        eval.config.substrate.settings.perHostContributors == [ ];
+    };
+
+    # Test 11: perUserContributors defaults to empty without the extension
+    perUserContributorsDefaultEmpty = {
+      check =
+        let
+          eval = evalSubstrateBase [ ];
+        in
+        eval.config.substrate.settings.perUserContributors == [ ];
+    };
+
+    # Test 12: home-manager extension pushes one per-host contributor
+    homeManagerPushesPerHostContributor = {
+      check =
+        let
+          eval = evalSubstrateWithHM [ ];
+        in
+        lib.length eval.config.substrate.settings.perHostContributors == 1;
+    };
+
+    # Test 13: the per-host contributor produces a home-manager module per user
+    perHostContributorProducesHomeManagerModule = {
+      check =
+        let
+          eval = evalSubstrateWithHM [
+            {
+              config.substrate.modules.programs.test.homeManager = {
+                programs.git.enable = true;
+              };
+            }
+          ];
+          contributor = builtins.head eval.config.substrate.settings.perHostContributors;
+          modules = contributor {
+            inputs = {
+              home-manager.nixosModules.home-manager = { };
+            };
+            substrate = eval.config.substrate;
+            hostname = "testhost";
+            hostcfg = {
+              users = [ "alice" ];
+              system = "x86_64-linux";
+            };
+            userConfigs = [ { name = "alice"; } ];
+          };
+          hmModule = builtins.elemAt modules 1;
+        in
+        lib.length modules == 2 && hmModule ? home-manager && hmModule.home-manager.users ? alice;
+    };
   };
 in
 runTests "Home-Manager Extension Tests" tests

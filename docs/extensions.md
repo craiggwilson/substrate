@@ -15,6 +15,20 @@ Extensions add capabilities to substrate. Import only what you need.
 | `jail` | `substrateModules.jail` | Jail/container support |
 | `types` | `substrateModules.types` | Custom type definitions |
 
+## Composition Hooks
+
+Core provides push-based hooks so extensions integrate with each other's
+builders without either side referencing the other:
+
+| Option | Context received by each function | Consumed by |
+|--------|-----------------------------------|-------------|
+| `substrate.settings.perHostContributors` | `{ inputs, substrate, hostname, hostcfg, userConfigs }` | Host builders (e.g., `nixos` extension) |
+| `substrate.settings.perUserContributors` | `{ inputs, substrate, userName, usercfg }` | User builders (e.g., `home-manager` extension) |
+
+Each entry is a function that returns a list of modules, appended to the
+builder's module list. Contributor function patterns should end with `...` to
+tolerate extra context fields.
+
 ## Home Manager Extension
 
 Generates `homeConfigurations` flake output.
@@ -34,6 +48,14 @@ imports = [ inputs.substrate.substrateModules.home-manager ];
 ### Output
 
 - `homeConfigurations.<username>` - Standalone Home Manager configurations
+
+### NixOS Integration
+
+When the NixOS extension is also loaded, this extension automatically
+integrates Home Manager into every host configuration by registering a
+`perHostContributors` entry (`home-manager.users.<name>` etc. with your
+`homeManager`-class modules). The nixos extension has no knowledge of this
+integration; it simply appends pushed contributors.
 
 ### Usage
 
@@ -308,6 +330,14 @@ Extensions are standard NixOS modules:
   config.substrate.finders.my-finder.find = cfgs:
     # Return list of modules
     [];
+
+  # Push modules into host/user builds (consumed by builders, blind to producers)
+  config.substrate.settings.perHostContributors = [
+    ({ inputs, hostname, hostcfg, userConfigs, ... }: [
+      # Return modules to append to each host configuration
+      { }
+    ])
+  ];
 }
 ```
 

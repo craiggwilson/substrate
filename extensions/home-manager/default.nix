@@ -9,7 +9,7 @@ let
   mkHomeConfigurations =
     { inputs, substrate }:
     lib.mapAttrs (
-      _: usercfg:
+      userName: usercfg:
       let
         userPkgs = import inputs.nixpkgs {
           localSystem = usercfg.system;
@@ -19,6 +19,17 @@ let
           inherit usercfg inputs;
           hostcfg = null;
         };
+        contributedModules = lib.concatMap (
+          f:
+          f {
+            inherit
+              inputs
+              substrate
+              userName
+              usercfg
+              ;
+          }
+        ) settings.perUserContributors;
       in
       inputs.home-manager.lib.homeManagerConfiguration {
         pkgs = userPkgs;
@@ -26,9 +37,56 @@ let
           inherit inputs;
         };
         modules =
-          (settings.homeManagerModules or [ ]) ++ (slib.findModulesForClass "homeManager" [ usercfg ]);
+          (settings.homeManagerModules or [ ])
+          ++ (slib.findModulesForClass "homeManager" [ usercfg ])
+          ++ contributedModules;
       }
     ) substrate.users;
+
+  # Integrates Home Manager into host configurations (e.g., NixOS).
+  # Pushed as a per-host contributor so host builders need no knowledge of this extension.
+  contributeToHosts =
+    {
+      inputs,
+      hostname,
+      hostcfg,
+      userConfigs,
+      ...
+    }:
+    [
+      inputs.home-manager.nixosModules.home-manager
+      {
+        home-manager =
+          let
+            mkHomeManagerUserModule = hostcfg: usercfg: {
+              imports = slib.findModulesForClass "homeManager" [
+                hostcfg
+                usercfg
+              ];
+              # Extra args for home-manager modules (e.g., hasTag from tags extension)
+              _module.args = slib.extraArgsGenerator {
+                inherit hostcfg usercfg inputs;
+              };
+            };
+          in
+          {
+            useGlobalPkgs = lib.mkDefault true;
+            useUserPackages = lib.mkDefault true;
+            backupFileExtension = lib.mkDefault "bak";
+            extraSpecialArgs = {
+              inherit inputs hostcfg;
+              host = hostname;
+            };
+            sharedModules = settings.homeManagerModules or [ ];
+            users = lib.listToAttrs (
+              lib.map (usercfg: {
+                name = usercfg.name;
+                value = mkHomeManagerUserModule hostcfg usercfg;
+              }) userConfigs
+            );
+          };
+      }
+    ];
 in
 {
   options.substrate.settings = {
@@ -41,6 +99,7 @@ in
 
   config.substrate = {
     settings.supportedClasses = [ "homeManager" ];
+    settings.perHostContributors = [ contributeToHosts ];
 
     outputs.homeConfigurations = [
       {

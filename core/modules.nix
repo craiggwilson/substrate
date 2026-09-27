@@ -45,12 +45,6 @@ in
         description = "Additional typed options to recognize at each level of the module tree. The key is the attribute name, the value is the type.";
         default = { };
       };
-
-      nixosModules = lib.mkOption {
-        type = lib.types.listOf lib.types.deferredModule;
-        description = "External NixOS modules to include in all NixOS configurations.";
-        default = [ ];
-      };
     };
   };
 

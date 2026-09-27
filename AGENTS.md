@@ -72,6 +72,13 @@ Extensions add capabilities by:
 2. Adding output builders to `substrate.outputs`
 3. Registering new finders in `substrate.finders`
 4. Adding to `substrate.settings.supportedClasses`
+5. Pushing module contributors to `substrate.settings.perHostContributors` /
+   `perUserContributors` (builders consume these without knowing which
+   extension pushed; e.g., home-manager integrates itself into NixOS hosts
+   this way instead of the nixos extension referencing it)
+
+Core must remain implementation-agnostic: hooks are named after core
+concepts (hosts, users), never after specific builders or targets.
 
 ### Builders
 

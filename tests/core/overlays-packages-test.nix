@@ -69,7 +69,7 @@ let
         let
           eval = evalSubstrate [ ];
         in
-        eval.config.substrate.settings.packages == [ ];
+        eval.config.substrate.settings.publish.packages == [ ];
     };
 
     # Test 6: Package namespace can be set

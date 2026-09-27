@@ -6,9 +6,6 @@ let
   # All overlays come from settings.overlays
   allOverlays = settings.overlays or [ ];
 
-  # Check if home-manager extension is enabled
-  hasHomeManager = slib.hasClass "homeManager";
-
   mkNixosConfigurations =
     { inputs, substrate }:
     lib.mapAttrs (
@@ -44,46 +41,19 @@ let
           usercfg = null;
         };
 
-        homeManagerModules = lib.optionals hasHomeManager [
-          inputs.home-manager.nixosModules.home-manager
-          {
-            home-manager =
-              let
-                mkHomeManagerUserModule = hostcfg: usercfg: {
-                  imports = slib.findModulesForClass "homeManager" [
-                    hostcfg
-                    usercfg
-                  ];
-                  # Extra args for home-manager modules (e.g., hasTag from tags extension)
-                  _module.args = slib.extraArgsGenerator {
-                    inherit hostcfg usercfg inputs;
-                  };
-                };
-              in
-              {
-                useGlobalPkgs = lib.mkDefault true;
-                useUserPackages = lib.mkDefault true;
-                backupFileExtension = lib.mkDefault "bak";
-                extraSpecialArgs = {
-                  inherit inputs hostcfg;
-                  host = hostname;
-                };
-                sharedModules = settings.homeManagerModules or [ ];
-                users = lib.listToAttrs (
-                  lib.map (
-                    user:
-                    let
-                      usercfg = substrate.users.${user};
-                    in
-                    {
-                      name = usercfg.name;
-                      value = mkHomeManagerUserModule hostcfg usercfg;
-                    }
-                  ) hostcfg.users
-                );
-              };
+        # Modules contributed by other extensions (e.g., home-manager integration)
+        contributedModules = lib.concatMap (
+          f:
+          f {
+            inherit
+              inputs
+              substrate
+              hostname
+              hostcfg
+              userConfigs
+              ;
           }
-        ];
+        ) settings.perHostContributors;
       in
       inputs.nixpkgs.lib.nixosSystem {
         specialArgs = {
@@ -102,11 +72,17 @@ let
         ]
         ++ settings.nixosModules
         ++ slib.unique (hostNixosModules ++ userNixosModules)
-        ++ homeManagerModules;
+        ++ contributedModules;
       }
     ) substrate.hosts;
 in
 {
+  options.substrate.settings.nixosModules = lib.mkOption {
+    type = lib.types.listOf lib.types.deferredModule;
+    description = "External NixOS modules to include in all NixOS configurations.";
+    default = [ ];
+  };
+
   config.substrate = {
     settings.supportedClasses = [ "nixos" ];
 
