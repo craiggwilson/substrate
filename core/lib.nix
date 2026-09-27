@@ -57,6 +57,15 @@ let
     );
 
   hasClass = class: builtins.elem class settings.supportedClasses;
+
+  # Resolve a flake input by the role it plays (e.g., "nixpkgs"), preferring an
+  # explicit substrate.settings.inputs entry over an input of the same name.
+  # Note: the throw must stay parenthesized; `a or b or throw "x"` parses as a
+  # function call on the result of the or-chain.
+  resolveInput =
+    name: inputs:
+    settings.inputs.${name} or inputs.${name}
+      or (throw "substrate: no flake input named '${name}'. Either name your input '${name}' or pass it explicitly via substrate.settings.inputs.${name}.");
 in
 {
   options.substrate.lib = lib.mkOption {
@@ -74,6 +83,7 @@ in
       findModulesForClass
       extraArgsGenerator
       hasClass
+      resolveInput
       ;
   };
 }

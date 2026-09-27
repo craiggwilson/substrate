@@ -9,6 +9,8 @@ let
   mkNixosConfigurations =
     { inputs, substrate }:
     let
+      nixpkgsInput = slib.resolveInput "nixpkgs" inputs;
+
       pkgsConfigFor = hostcfg: settings.nixpkgsConfig // hostcfg.nixpkgsConfig;
 
       # One package set per distinct (system, nixpkgs config) pair, shared
@@ -31,7 +33,7 @@ let
           ++ [
             {
               inherit key;
-              pkgs = import inputs.nixpkgs {
+              pkgs = import nixpkgsInput {
                 inherit (key) system config;
                 overlays = allOverlays;
               };
@@ -102,7 +104,7 @@ let
           }
         ) settings.perHostContributors;
       in
-      inputs.nixpkgs.lib.nixosSystem {
+      nixpkgsInput.lib.nixosSystem {
         specialArgs = {
           inherit inputs hostcfg;
         };

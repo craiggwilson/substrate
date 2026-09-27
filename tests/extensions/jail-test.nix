@@ -18,12 +18,26 @@ let
     };
   };
 
+  baseModules = [
+    ../../core/settings.nix
+    ../../core/lib.nix
+    ../../extensions/jail/default.nix
+  ];
+
+  moduleArgsFrom =
+    eval:
+    eval.config.substrate.lib.extraArgsGenerator {
+      hostcfg = null;
+      usercfg = null;
+      inputs = { };
+      pkgs = {
+        tag = "host-pkgs";
+      };
+    };
+
+  # resolved via the conventional input name
   eval = lib.evalModules {
-    modules = [
-      ../../core/settings.nix
-      ../../core/lib.nix
-      ../../extensions/jail/default.nix
-    ];
+    modules = baseModules;
     specialArgs = {
       inputs = {
         jail-nix = fakeJailNix;
@@ -31,14 +45,21 @@ let
     };
   };
 
-  moduleArgs = eval.config.substrate.lib.extraArgsGenerator {
-    hostcfg = null;
-    usercfg = null;
-    inputs = { };
-    pkgs = {
-      tag = "host-pkgs";
+  moduleArgs = moduleArgsFrom eval;
+
+  # resolved via substrate.settings.inputs when the flake names it differently
+  evalViaSettings = lib.evalModules {
+    modules = baseModules ++ [
+      {
+        config.substrate.settings.inputs."jail-nix" = fakeJailNix;
+      }
+    ];
+    specialArgs = {
+      inputs = { };
     };
   };
+
+  moduleArgsViaSettings = moduleArgsFrom evalViaSettings;
 in
 runTests "Jail Extension Tests" {
   # Test 1: modules receive a pkgs-bound jailLib with mkJail directly usable
@@ -51,5 +72,12 @@ runTests "Jail Extension Tests" {
   # Test 2: the old raw-lib `jail` argument is gone
   rawJailArgRemoved = {
     check = !(moduleArgs ? jail);
+  };
+
+  # Test 3: settings.inputs provides the input when the flake lacks the name
+  jailLibViaSettingsInputs = {
+    check =
+      moduleArgsViaSettings.jailLib.pkgsTag == "host-pkgs"
+      && moduleArgsViaSettings.jailLib.mkJail { name = "db"; } == "jail:db";
   };
 }

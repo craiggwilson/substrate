@@ -87,6 +87,10 @@ targets. `substrate.settings/systems/nixpkgsConfig` and
 `substrate.<hosts|users>.<name>.nixpkgsConfig` are core-level package-set
 vocabulary (like `systems` itself), honored by whichever builder creates
 package sets.
+Extensions must resolve flake inputs by role via
+`config.substrate.lib.resolveInput "<role>" inputs` (which honors
+`substrate.settings.inputs` overrides) rather than reading `inputs.<name>`
+directly.
 `substrate.lib` is internal plumbing for builders/extensions; it must never
 be passed into host/user modules.
 

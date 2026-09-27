@@ -348,6 +348,41 @@ let
         in
         nameFromPath "/foo/bar/baz" == "baz";
     };
+
+    # Test 16: resolveInput falls back to the input of the same name
+    resolveInputByName = {
+      check =
+        let
+          eval = evalSubstrate [ ];
+          resolveInput = eval.config.substrate.lib.resolveInput;
+        in
+        (resolveInput "nixpkgs" { nixpkgs = "by-name"; }) == "by-name";
+    };
+
+    # Test 17: settings.inputs overrides win over name lookup
+    resolveInputSettingsOverride = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.settings.inputs.nixpkgs = "from-settings";
+            }
+          ];
+          resolveInput = eval.config.substrate.lib.resolveInput;
+        in
+        (resolveInput "nixpkgs" { nixpkgs = "by-name"; }) == "from-settings";
+    };
+
+    # Test 18: resolveInput throws with guidance when no input is found
+    resolveInputMissingThrows = {
+      check =
+        let
+          eval = evalSubstrate [ ];
+          resolveInput = eval.config.substrate.lib.resolveInput;
+          result = builtins.tryEval (resolveInput "jail-nix" { });
+        in
+        !result.success;
+    };
   };
 in
 runTests "Lib Tests" tests

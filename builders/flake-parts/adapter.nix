@@ -9,6 +9,8 @@
 let
   settings = config.substrate.settings;
   outputs = config.substrate.outputs;
+  slib = config.substrate.lib;
+  nixpkgsInput = slib.resolveInput "nixpkgs" inputs;
 
   # All overlays come from settings.overlays (extensions add theirs there too)
   allOverlays = settings.overlays or [ ];
@@ -37,7 +39,7 @@ in
   perSystem =
     { system, ... }:
     let
-      pkgs = import inputs.nixpkgs {
+      pkgs = import nixpkgsInput {
         inherit system;
         overlays = allOverlays;
       };

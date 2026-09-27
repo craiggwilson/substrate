@@ -7,6 +7,14 @@ This guide walks you through setting up substrate in your Nix flake.
 - Nix with flakes enabled
 - Basic familiarity with NixOS modules and/or Home Manager
 
+Input names (`nixpkgs`, `home-manager`, `jail-nix`, …) are conventions:
+substrate looks up each input by the role it plays. If your flake names one
+differently, map it once at the top level:
+
+```nix
+substrate.settings.inputs.nixpkgs = inputs.pkgs-unstable;
+```
+
 ## Installation
 
 Add substrate as a flake input alongside your other dependencies:

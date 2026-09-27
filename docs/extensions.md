@@ -329,7 +329,9 @@ Provides jail.nix support for container-style isolation.
 imports = [ inputs.substrate.substrateModules.jail ];
 ```
 
-Requires a `jail-nix` flake input (or an explicit `jail-nix` argument).
+Requires a `jail-nix` input — resolved by the usual precedence: an explicit
+`jail-nix` argument, `substrate.settings.inputs."jail-nix"`, or a flake input
+named `jail-nix`.
 
 ### Options
 

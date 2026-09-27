@@ -167,6 +167,10 @@ substrate.settings = {
   # Which finder to use
   modulesFinder = "all";
 
+  # Flake inputs keyed by role, for when your input names differ
+  # (e.g., inputs.nixpkgs = inputs.pkgs-unstable)
+  inputs = { ... };
+
   # Supported module classes (extensions add to this)
   supportedClasses = [ "nixos" "homeManager" "generic" ];
 
@@ -217,6 +221,7 @@ arrives in modules as an argument of the same name, computed per build with
 | `unique` | Deduplicate a list |
 | `findModulesForClass` | Get modules for a specific class |
 | `extraArgsGenerator` | Generate specialArgs for configurations |
+| `resolveInput` | Look up a flake input by role name, honoring `settings.inputs` overrides |
 
 ## Configuration Flow
 

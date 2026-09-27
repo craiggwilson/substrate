@@ -16,11 +16,7 @@ let
       cfg = config.substrate.settings.jail;
 
       jailInput =
-        if jail-nix != null then
-          jail-nix
-        else
-          inputs.jail-nix
-            or (throw "jail extension requires inputs.jail-nix or an explicit jail-nix argument");
+        if jail-nix != null then jail-nix else config.substrate.lib.resolveInput "jail-nix" inputs;
     in
     {
       options.substrate.settings.jail = {

@@ -8,10 +8,14 @@ let
 
   mkHomeConfigurations =
     { inputs, substrate }:
+    let
+      nixpkgsInput = slib.resolveInput "nixpkgs" inputs;
+      homeManagerInput = slib.resolveInput "home-manager" inputs;
+    in
     lib.mapAttrs (
       userName: usercfg:
       let
-        userPkgs = import inputs.nixpkgs {
+        userPkgs = import nixpkgsInput {
           localSystem = usercfg.system;
           overlays = allOverlays;
           config = settings.nixpkgsConfig // usercfg.nixpkgsConfig;
@@ -34,7 +38,7 @@ let
           }
         ) settings.perUserContributors;
       in
-      inputs.home-manager.lib.homeManagerConfiguration {
+      homeManagerInput.lib.homeManagerConfiguration {
         pkgs = userPkgs;
         extraSpecialArgs = extraArgs // {
           inherit inputs;
@@ -57,8 +61,11 @@ let
       pkgs,
       ...
     }:
+    let
+      homeManagerInput = slib.resolveInput "home-manager" inputs;
+    in
     [
-      inputs.home-manager.nixosModules.home-manager
+      homeManagerInput.nixosModules.home-manager
       {
         home-manager =
           let
