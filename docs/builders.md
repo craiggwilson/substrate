@@ -76,22 +76,21 @@ The adapter handles two types of outputs:
 
 ### Builder Arguments
 
-Output builders receive different arguments based on type:
+Builders are registered under the category that matches how they run; the
+category determines their arguments:
 
-**Per-system builders:**
+**Per-system builders (`substrate.outputs.perSystem.<name>`):**
 ```nix
 {
-  type = "per-system";
   build = { pkgs, system, inputs, substrate }: {
     # Return attrset to merge into output
   };
 }
 ```
 
-**Global builders:**
+**Global builders (`substrate.outputs.global.<name>`):**
 ```nix
 {
-  type = "global";
   build = { inputs, substrate }: {
     # Return attrset to merge into output
   };
@@ -180,12 +179,11 @@ Export in `default.nix`:
 
 ## Output Builder Registration
 
-Extensions register output builders:
+Extensions register output builders under the category that fits:
 
 ```nix
-config.substrate.outputs.packages = [
+config.substrate.outputs.perSystem.packages = [
   {
-    type = "per-system";
     build = { pkgs, ... }:
       # Return packages attrset
       { my-package = pkgs.hello; };
@@ -197,13 +195,13 @@ Multiple builders can register for the same output - results are merged:
 
 ```nix
 # Extension A
-config.substrate.outputs.packages = [
-  { type = "per-system"; build = { ... }: { pkg-a = ...; }; }
+config.substrate.outputs.perSystem.packages = [
+  { build = { ... }: { pkg-a = ...; }; }
 ];
 
-# Extension B  
-config.substrate.outputs.packages = [
-  { type = "per-system"; build = { ... }: { pkg-b = ...; }; }
+# Extension B
+config.substrate.outputs.perSystem.packages = [
+  { build = { ... }: { pkg-b = ...; }; }
 ];
 
 # Result: packages = { pkg-a = ...; pkg-b = ...; }

@@ -373,12 +373,11 @@ Extensions are standard NixOS modules:
   # Add to supported classes (if adding a new class)
   config.substrate.settings.supportedClasses = [ "myClass" ];
 
-  # Register output builders
-  config.substrate.outputs.myOutput = [
+  # Register output builders (global = once; perSystem = once per system)
+  config.substrate.outputs.perSystem.myOutput = [
     {
-      type = "per-system";
-      build = { pkgs, substrate, ... }: {
-        # Return attrset to merge into flake output
+      build = { pkgs, system, substrate, ... }: {
+        # Return attrset to merge into the flake output
       };
     }
   ];

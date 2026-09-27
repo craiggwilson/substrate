@@ -117,9 +117,8 @@ in
     settings.supportedClasses = [ "homeManager" ];
     settings.perHostContributors = [ contributeToHosts ];
 
-    outputs.homeConfigurations = [
+    outputs.global.homeConfigurations = [
       {
-        type = "global";
         build = { inputs, substrate }: mkHomeConfigurations { inherit inputs substrate; };
       }
     ];

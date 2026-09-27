@@ -189,23 +189,35 @@ substrate.settings = {
 
 ## Output Builders
 
-Output builders generate flake outputs. They're registered by extensions:
+Output builders generate flake outputs. They're registered by extensions
+under the category that matches how they run:
 
 ```nix
-config.substrate.outputs.homeConfigurations = [
+# Invoked once, results merged into the flake output of the same name
+config.substrate.outputs.global.homeConfigurations = [
   {
-    type = "global";  # or "per-system"
     build = { inputs, substrate }: { ... };
+  }
+];
+
+# Invoked once per system in settings.systems, results merged under
+# <output>.<system>
+config.substrate.outputs.perSystem.packages = [
+  {
+    build = { pkgs, system, inputs, substrate }: { ... };
   }
 ];
 ```
 
-### Output Types
+### Builder Categories
 
-| Type | Description | Example |
-|------|-------------|---------|
-| `global` | Not system-specific | `nixosConfigurations`, `homeConfigurations` |
-| `per-system` | Built per-system | `packages`, `devShells` |
+| Category | Build function receives | Example outputs |
+|----------|------------------------|-----------------|
+| `global` | `{ inputs, substrate }` | `nixosConfigurations`, `homeConfigurations`, `overlays` |
+| `perSystem` | `{ pkgs, system, inputs, substrate }` | `packages`, `devShells` |
+
+Multiple extensions may contribute builders to the same output name; all of
+their results are merged.
 
 ## Library Functions
 

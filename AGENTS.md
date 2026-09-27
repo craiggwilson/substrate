@@ -69,7 +69,9 @@ Where `cfgs` is a list of host/user configurations and the result is a list of m
 
 Extensions add capabilities by:
 1. Defining new options under `substrate.settings`
-2. Adding output builders to `substrate.outputs`
+2. Adding output builders to `substrate.outputs.global` (invoked once) or
+   `substrate.outputs.perSystem` (invoked once per system); entries are
+   `{ build = fn; }` where fn receives the category's context
 3. Registering new finders in `substrate.finders`
 4. Adding to `substrate.settings.supportedClasses`
 5. Pushing module contributors to `substrate.settings.perHostContributors` /

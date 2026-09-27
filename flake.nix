@@ -41,6 +41,7 @@
           core-hosts-users-test = mkTest "hosts-users-test" ./tests/core/hosts-users-test.nix;
           core-overlays-packages-test = mkTest "overlays-packages-test" ./tests/core/overlays-packages-test.nix;
           core-finders-test = mkTest "finders-test" ./tests/core/finders-test.nix;
+          core-outputs-test = mkTest "outputs-test" ./tests/core/outputs-test.nix;
 
           # Extension tests
           extensions-tags-test = mkTest "tags-test" ./tests/extensions/tags-test.nix;

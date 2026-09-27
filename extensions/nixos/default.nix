@@ -135,9 +135,8 @@ in
   config.substrate = {
     settings.supportedClasses = [ "nixos" ];
 
-    outputs.nixosConfigurations = [
+    outputs.global.nixosConfigurations = [
       {
-        type = "global";
         build = { inputs, substrate }: mkNixosConfigurations { inherit inputs substrate; };
       }
     ];

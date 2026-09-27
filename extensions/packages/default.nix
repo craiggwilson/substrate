@@ -57,9 +57,8 @@ in
     settings.overlays = [ packagesOverlay ];
 
     outputs = {
-      overlays = [
+      global.overlays = [
         {
-          type = "global";
           build =
             { ... }:
             {
@@ -68,9 +67,8 @@ in
         }
       ];
 
-      packages = [
+      perSystem.packages = [
         {
-          type = "per-system";
           build = { pkgs, ... }: mkPackagesDerivationsOnly pkgs;
         }
       ];

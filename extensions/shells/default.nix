@@ -22,9 +22,8 @@ in
     description = "Paths to shell files to publish as devShells flake outputs.";
   };
 
-  config.substrate.outputs.devShells = lib.mkIf (settings.publish.shells != [ ]) [
+  config.substrate.outputs.perSystem.devShells = lib.mkIf (settings.publish.shells != [ ]) [
     {
-      type = "per-system";
       build = { pkgs, inputs, ... }: mkShells { inherit pkgs inputs; };
     }
   ];

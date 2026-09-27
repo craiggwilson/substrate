@@ -27,24 +27,21 @@ in
     };
   };
 
-  config.substrate.outputs = {
+  config.substrate.outputs.global = {
     nixosModules = lib.mkIf hasNixos [
       {
-        type = "global";
         build = { ... }: publish.nixosModules;
       }
     ];
 
     homeManagerModules = lib.mkIf hasHomeManager [
       {
-        type = "global";
         build = { ... }: publish.homeManagerModules;
       }
     ];
 
     substrateModules = lib.mkIf hasSubstrate [
       {
-        type = "global";
         build = { ... }: publish.substrateModules;
       }
     ];
