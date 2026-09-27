@@ -20,6 +20,11 @@
               type = lib.types.enum config.substrate.settings.systems;
               default = builtins.currentSystem;
             };
+            nixpkgsConfig = lib.mkOption {
+              type = lib.types.attrsOf lib.types.anything;
+              description = "Additional nixpkgs configuration for this host's package set, merged over substrate.settings.nixpkgsConfig.";
+              default = { };
+            };
             users = lib.mkOption {
               type = lib.types.listOf (lib.types.enum (builtins.attrNames config.substrate.users));
               default = [ ];

@@ -160,6 +160,7 @@ let
             hostcfg = null;
             usercfg = null;
             inputs = null;
+            pkgs = { };
           };
         in
         args == { };
@@ -182,9 +183,55 @@ let
             hostcfg = null;
             usercfg = null;
             inputs = null;
+            pkgs = { };
           };
         in
         args.foo == "bar" && args.baz == 42;
+    };
+
+    # Test 9a: generators receive pkgs and can return pkgs-bound helpers
+    extraArgsGeneratorReceivesPkgs = {
+      check =
+        let
+          fakePkgs = {
+            tag = "host-pkgs";
+          };
+          eval = evalSubstrate [
+            {
+              config.substrate.settings.extraArgsGenerators = [
+                ({ pkgs, ... }: { bound = pkgs.tag; })
+              ];
+            }
+          ];
+          args = eval.config.substrate.lib.extraArgsGenerator {
+            hostcfg = null;
+            usercfg = null;
+            inputs = null;
+            pkgs = fakePkgs;
+          };
+        in
+        args.bound == "host-pkgs";
+    };
+
+    # Test 9b: static helpers arrive as flat args, substrate.lib stays out
+    extraArgsGeneratorFlatAndIsolated = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.settings.extraArgsGenerators = [
+                (_: { myHelper = x: x; })
+              ];
+            }
+          ];
+          args = eval.config.substrate.lib.extraArgsGenerator {
+            hostcfg = null;
+            usercfg = null;
+            inputs = null;
+            pkgs = { };
+          };
+        in
+        (args.myHelper 1) == 1 && !(args ? hasClass) && !(args ? findModulesForClass);
     };
 
     # Test 10: findModulesForClass includes generic modules for nixos

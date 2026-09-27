@@ -201,6 +201,7 @@ let
               system = "x86_64-linux";
             };
             userConfigs = [ { name = "alice"; } ];
+            pkgs = { };
           };
           hmModule = builtins.elemAt modules 1;
         in

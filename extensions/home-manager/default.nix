@@ -14,10 +14,12 @@ let
         userPkgs = import inputs.nixpkgs {
           localSystem = usercfg.system;
           overlays = allOverlays;
+          config = settings.nixpkgsConfig // usercfg.nixpkgsConfig;
         };
         extraArgs = slib.extraArgsGenerator {
           inherit usercfg inputs;
           hostcfg = null;
+          pkgs = userPkgs;
         };
         contributedModules = lib.concatMap (
           f:
@@ -28,6 +30,7 @@ let
               userName
               usercfg
               ;
+            pkgs = userPkgs;
           }
         ) settings.perUserContributors;
       in
@@ -51,6 +54,7 @@ let
       hostname,
       hostcfg,
       userConfigs,
+      pkgs,
       ...
     }:
     [
@@ -65,7 +69,12 @@ let
               ];
               # Extra args for home-manager modules (e.g., hasTag from tags extension)
               _module.args = slib.extraArgsGenerator {
-                inherit hostcfg usercfg inputs;
+                inherit
+                  hostcfg
+                  usercfg
+                  inputs
+                  pkgs
+                  ;
               };
             };
           in

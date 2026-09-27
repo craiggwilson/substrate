@@ -76,9 +76,19 @@ Extensions add capabilities by:
    `perUserContributors` (builders consume these without knowing which
    extension pushed; e.g., home-manager integrates itself into NixOS hosts
    this way instead of the nixos extension referencing it)
+6. Contributing module arguments via `substrate.settings.extraArgsGenerators`
+   (each returned key becomes a module argument; generators receive
+   `{ hostcfg, usercfg, inputs, pkgs }`, so helpers can be returned already
+   bound to `pkgs`; e.g., the jail extension provides `jailLib`)
 
 Core must remain implementation-agnostic: hooks are named after core
-concepts (hosts, users), never after specific builders or targets.
+concepts (hosts, users, package sets), never after specific builders or
+targets. `substrate.settings/systems/nixpkgsConfig` and
+`substrate.<hosts|users>.<name>.nixpkgsConfig` are core-level package-set
+vocabulary (like `systems` itself), honored by whichever builder creates
+package sets.
+`substrate.lib` is internal plumbing for builders/extensions; it must never
+be passed into host/user modules.
 
 ### Builders
 

@@ -145,7 +145,45 @@ let
         in
         eval.config.substrate.users == { };
     };
+
+    # Test 11: nixpkgsConfig defaults to empty at all levels
+    nixpkgsConfigDefaults = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.hosts.testhost = { };
+              config.substrate.users.testuser = { };
+            }
+          ];
+        in
+        eval.config.substrate.settings.nixpkgsConfig == { }
+        && eval.config.substrate.hosts.testhost.nixpkgsConfig == { }
+        && eval.config.substrate.users.testuser.nixpkgsConfig == { };
+    };
+
+    # Test 12: nixpkgsConfig is settable on settings, hosts, and users
+    nixpkgsConfigSettable = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.settings.nixpkgsConfig = {
+                allowUnfree = true;
+              };
+              config.substrate.hosts.testhost = {
+                nixpkgsConfig.cudaSupport = true;
+              };
+              config.substrate.users.testuser = {
+                nixpkgsConfig.permittedInsecurePackages = [ "x-1" ];
+              };
+            }
+          ];
+        in
+        eval.config.substrate.settings.nixpkgsConfig.allowUnfree == true
+        && eval.config.substrate.hosts.testhost.nixpkgsConfig.cudaSupport == true
+        && eval.config.substrate.users.testuser.nixpkgsConfig.permittedInsecurePackages == [ "x-1" ];
+    };
   };
 in
 runTests "Hosts & Users Tests" tests
-

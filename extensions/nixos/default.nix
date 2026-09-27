@@ -8,9 +8,54 @@ let
 
   mkNixosConfigurations =
     { inputs, substrate }:
+    let
+      pkgsConfigFor = hostcfg: settings.nixpkgsConfig // hostcfg.nixpkgsConfig;
+
+      # One package set per distinct (system, nixpkgs config) pair, shared
+      # across hosts. Handed to nixosSystem via nixpkgs.pkgs, so the
+      # configuration's own pkgs and the pkgs passed to extraArgsGenerators
+      # are literally the same value — no duplicated evaluation, no
+      # divergence. Config is baked in at import, hence part of the key.
+      pkgsInstances = lib.foldl' (
+        acc: hostcfg:
+        let
+          key = {
+            system = hostcfg.system;
+            config = pkgsConfigFor hostcfg;
+          };
+        in
+        if builtins.any (i: i.key == key) acc then
+          acc
+        else
+          acc
+          ++ [
+            {
+              inherit key;
+              pkgs = import inputs.nixpkgs {
+                inherit (key) system config;
+                overlays = allOverlays;
+              };
+            }
+          ]
+      ) [ ] (builtins.attrValues substrate.hosts);
+
+      hostPkgsFor =
+        hostcfg:
+        (builtins.head (
+          lib.filter (
+            i:
+            i.key == {
+              system = hostcfg.system;
+              config = pkgsConfigFor hostcfg;
+            }
+          ) pkgsInstances
+        )).pkgs;
+    in
     lib.mapAttrs (
       hostname: hostcfg:
       let
+        hostPkgs = hostPkgsFor hostcfg;
+
         mkNixosUser = usercfg: {
           isNormalUser = lib.mkDefault true;
           name = usercfg.name;
@@ -39,6 +84,7 @@ let
         nixosExtraArgs = slib.extraArgsGenerator {
           inherit hostcfg inputs;
           usercfg = null;
+          pkgs = hostPkgs;
         };
 
         # Modules contributed by other extensions (e.g., home-manager integration)
@@ -52,6 +98,7 @@ let
               hostcfg
               userConfigs
               ;
+            pkgs = hostPkgs;
           }
         ) settings.perHostContributors;
       in
@@ -61,10 +108,10 @@ let
         };
         modules = [
           {
-            nixpkgs = {
-              overlays = allOverlays;
-              hostPlatform = hostcfg.system;
-            };
+            # Using the shared pkgs set means nixpkgs.overlays and
+            # nixpkgs.hostPlatform are not read here; overlays already come in
+            # via settings.overlays (baked into the pkgs instances above).
+            nixpkgs.pkgs = hostPkgs;
             networking.hostName = lib.mkDefault hostname;
             _module.args = nixosExtraArgs;
           }

@@ -168,6 +168,38 @@ substrate.modules.programs.neovim = {
 };
 ```
 
+## Sharing Helper Functions
+
+Modules receive helper functions as arguments. Extensions like `tags` and
+`jail` contribute helpers this way (`hasTag`, `jailLib`), and so can you —
+add a generator under `substrate.settings.extraArgsGenerators`. Generators
+receive `{ hostcfg, usercfg, inputs, pkgs }` and return an attrset whose keys
+become module arguments, so both plain helpers and `pkgs`-bound helpers are
+possible:
+
+```nix
+substrate.settings.extraArgsGenerators = [
+  (
+    { pkgs, ... }:
+    {
+      # a pkgs-bound helper, provided fully prepared to modules
+      myTheme = import ./lib/theme.nix { inherit pkgs; };
+    }
+  )
+];
+```
+
+```nix
+substrate.modules.programs.zellij = {
+  homeManager = { myTheme, ... }: {
+    programs.zellij.config = myTheme.config;
+  };
+};
+```
+
+This replaces depth-sensitive relative imports of shared helpers from within
+modules.
+
 ## Flake Outputs
 
 Substrate generates standard flake outputs:

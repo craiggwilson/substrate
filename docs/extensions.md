@@ -22,12 +22,17 @@ builders without either side referencing the other:
 
 | Option | Context received by each function | Consumed by |
 |--------|-----------------------------------|-------------|
-| `substrate.settings.perHostContributors` | `{ inputs, substrate, hostname, hostcfg, userConfigs }` | Host builders (e.g., `nixos` extension) |
-| `substrate.settings.perUserContributors` | `{ inputs, substrate, userName, usercfg }` | User builders (e.g., `home-manager` extension) |
+| `substrate.settings.extraArgsGenerators` | `{ hostcfg, usercfg, inputs, pkgs }` | All module builds — merged results become module arguments |
+| `substrate.settings.perHostContributors` | `{ inputs, substrate, hostname, hostcfg, userConfigs, pkgs }` | Host builders (e.g., `nixos` extension) |
+| `substrate.settings.perUserContributors` | `{ inputs, substrate, userName, usercfg, pkgs }` | User builders (e.g., `home-manager` extension) |
 
-Each entry is a function that returns a list of modules, appended to the
-builder's module list. Contributor function patterns should end with `...` to
-tolerate extra context fields.
+Each contributor entry is a function that returns a list of modules, appended
+to the builder's module list. Contributor function patterns should end with
+`...` to tolerate extra context fields. `extraArgsGenerators` entries return
+attrsets; each key is passed into modules as an argument of the same name.
+`pkgs` matches the build target (host system pkgs for host builds, user
+system pkgs for user builds), so helpers can be returned fully bound to
+`pkgs`.
 
 ## Home Manager Extension
 
@@ -44,6 +49,12 @@ imports = [ inputs.substrate.substrateModules.home-manager ];
 | Option | Type | Description |
 |--------|------|-------------|
 | `substrate.settings.homeManagerModules` | list | External HM modules to include |
+| `substrate.users.<name>.nixpkgsConfig` | attrs | Extra nixpkgs config for this user's standalone package set |
+
+Standalone builds import a user package set with
+`substrate.settings.nixpkgsConfig` merged with the user's `nixpkgsConfig`.
+Users on NixOS hosts share the host's package set instead (HM
+`useGlobalPkgs`).
 
 ### Output
 
@@ -86,6 +97,16 @@ imports = [ inputs.substrate.substrateModules.nixos ];
 | Option | Type | Description |
 |--------|------|-------------|
 | `substrate.settings.nixosModules` | list | External NixOS modules to include |
+| `substrate.hosts.<name>.nixpkgsConfig` | attrs | Extra nixpkgs config for this host's package set |
+
+Host package sets are created once per distinct `(system, nixpkgs config)`
+combination — `substrate.settings.nixpkgsConfig` merged with the host's
+`nixpkgsConfig` — and handed to `nixosSystem` via `nixpkgs.pkgs`, so the
+configuration's `pkgs` and the `pkgs` given to `extraArgsGenerators` are the
+same value. Because the package set is fixed at creation, set nixpkgs config
+through these options; modules that assign `nixpkgs.config` directly are
+rejected by nixpkgs' own assertion. `nixpkgs.overlays` set by external
+modules is still honored (appended onto the package set).
 
 ### Output
 
@@ -296,6 +317,40 @@ pkgs.mkShell {
     rust-analyzer
   ];
 }
+```
+
+## Jail Extension
+
+Provides jail.nix support for container-style isolation.
+
+### Import
+
+```nix
+imports = [ inputs.substrate.substrateModules.jail ];
+```
+
+Requires a `jail-nix` flake input (or an explicit `jail-nix` argument).
+
+### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `substrate.settings.jail.basePermissions` | function or null | Base permissions all jails inherit |
+| `substrate.settings.jail.additionalCombinators` | function or null | Custom combinators exposed to jail definitions |
+
+### Module argument
+
+This extension contributes a pkgs-bound `jailLib` to every module build via
+`extraArgsGenerators`, so modules can use jail.nix directly without extending
+it themselves:
+
+```nix
+substrate.modules.services.web = {
+  nixos = { pkgs, jailLib, ... }: {
+    # jailLib is jail.nix's lib already extended with the host's pkgs,
+    # e.g. jailLib.mkJail { ... }
+  };
+};
 ```
 
 ## Creating Custom Extensions

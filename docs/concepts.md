@@ -170,6 +170,10 @@ substrate.settings = {
   # Supported module classes (extensions add to this)
   supportedClasses = [ "nixos" "homeManager" "generic" ];
 
+  # nixpkgs config baked into every package set substrate creates
+  # (overridable per host/user via <entity>.nixpkgsConfig)
+  nixpkgsConfig = { ... };
+
   # Extra arguments passed to configurations
   extraArgsGenerators = [ ... ];
 
@@ -201,7 +205,12 @@ config.substrate.outputs.homeConfigurations = [
 
 ## Library Functions
 
-Substrate provides utility functions via `substrate.lib`:
+Substrate provides utility functions via `substrate.lib`. These are
+**internal to builders and extensions** and are not passed into host/user
+modules. To share helper functions with modules, contribute them via
+`substrate.settings.extraArgsGenerators` — each key of the returned attrset
+arrives in modules as an argument of the same name, computed per build with
+`{ hostcfg, usercfg, inputs, pkgs }` available.
 
 | Function | Description |
 |----------|-------------|

@@ -45,13 +45,13 @@ let
         };
       };
 
-      # Note: jail.extend requires pkgs, so modules using jail need to call jail.extend themselves
-      # Example: { pkgs, jail, ... }: let jailLib = jail.extend pkgs; in ...
+      # Provide the pkgs-bound jail library to modules as `jailLib`, so they
+      # can call `jailLib.mkJail` directly instead of extending themselves.
       config.substrate.settings.extraArgsGenerators = [
         (
-          { ... }:
+          { pkgs, ... }:
           {
-            jail = jailInput.lib;
+            jailLib = jailInput.lib.extend pkgs;
           }
         )
       ];

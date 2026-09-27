@@ -18,6 +18,19 @@
       default = "all";
     };
 
+    nixpkgsConfig = lib.mkOption {
+      type = lib.types.attrsOf lib.types.anything;
+      description = ''
+        Base nixpkgs configuration baked into every package set substrate
+        creates (host and standalone user package sets). Per-entity overrides
+        go in substrate.hosts.<name>.nixpkgsConfig or
+        substrate.users.<name>.nixpkgsConfig. Package sets must be configured
+        at instance creation, so setting nixpkgs.config inside a host/user
+        module conflicts with this and is rejected by nixpkgs itself.
+      '';
+      default = { };
+    };
+
     supportedClasses = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       description = "The supported module classes. Extensions add their classes here.";
@@ -27,10 +40,13 @@
     extraArgsGenerators = lib.mkOption {
       type = lib.types.listOf (lib.types.functionTo lib.types.attrs);
       description = ''
-        Function to compute extra specialArgs for output configurations.
-        hostcfg will be null for standalone user configurations and
-        usercfg will be null for host configurations.
-        Receives: { hostcfg, usercfg, pkgs, inputs }
+        Functions to compute extra specialArgs (module arguments) for output
+        configurations. This is the shared extension point for helpers that
+        modules need, whether static or dependent on build context.
+        Receives: { hostcfg, usercfg, inputs, pkgs }
+        hostcfg is null for standalone user configurations and usercfg is null
+        for host configurations; pkgs matches the build target
+        (host system pkgs for host builds, user system pkgs for user builds).
         Returns: attrset merged into specialArgs
       '';
       default = [ ];
@@ -40,7 +56,7 @@
       type = lib.types.listOf (lib.types.functionTo (lib.types.listOf lib.types.unspecified));
       description = ''
         Contributors that add modules to each host configuration.
-        Each function receives { inputs, substrate, hostname, hostcfg, userConfigs }
+        Each function receives { inputs, substrate, hostname, hostcfg, userConfigs, pkgs }
         and returns a list of modules appended to the host's module list.
         Contributors should accept extra context fields (end patterns with ...).
         Extensions push contributions here; host builders consume them,
@@ -53,7 +69,7 @@
       type = lib.types.listOf (lib.types.functionTo (lib.types.listOf lib.types.unspecified));
       description = ''
         Contributors that add modules to each user configuration.
-        Each function receives { inputs, substrate, userName, usercfg }
+        Each function receives { inputs, substrate, userName, usercfg, pkgs }
         and returns a list of modules appended to the user's module list.
         Contributors should accept extra context fields (end patterns with ...).
         Extensions push contributions here; user builders consume them,

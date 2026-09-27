@@ -40,6 +40,7 @@ let
       hostcfg,
       usercfg,
       inputs,
+      pkgs,
     }:
     lib.mergeAttrsList (
       lib.map (
@@ -49,6 +50,7 @@ let
             hostcfg
             usercfg
             inputs
+            pkgs
             ;
         }
       ) settings.extraArgsGenerators

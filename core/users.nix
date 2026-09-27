@@ -27,6 +27,11 @@
                 type = lib.types.enum config.substrate.settings.systems;
                 default = builtins.currentSystem;
               };
+              nixpkgsConfig = lib.mkOption {
+                type = lib.types.attrsOf lib.types.anything;
+                description = "Additional nixpkgs configuration for this user's standalone package set, merged over substrate.settings.nixpkgsConfig. Users on NixOS hosts share the host's package set instead.";
+                default = { };
+              };
 
             };
         }
