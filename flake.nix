@@ -47,6 +47,7 @@
           extensions-tags-test = mkTest "tags-test" ./tests/extensions/tags-test.nix;
           extensions-home-manager-test = mkTest "home-manager-test" ./tests/extensions/home-manager-test.nix;
           extensions-jail-test = mkTest "jail-test" ./tests/extensions/jail-test.nix;
+          extensions-secrets-test = mkTest "secrets-test" ./tests/extensions/secrets-test.nix;
 
           # Builder tests
           builders-checks-test = mkTest "checks-test" ./tests/builders/checks-test.nix;

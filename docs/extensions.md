@@ -11,6 +11,7 @@ Extensions add capabilities to substrate. Import only what you need.
 | `tags` | `substrateModules.tags` | Tag-based module filtering |
 | `overlays` | `substrateModules.overlays` | Overlay management |
 | `packages` | `substrateModules.packages` | Package definitions |
+| `secrets` | `substrateModules.secrets` | Declarative secrets via SecretSpec |
 | `shells` | `substrateModules.shells` | Development shells |
 | `jail` | `substrateModules.jail` | Jail/container support |
 | `types` | `substrateModules.types` | Custom type definitions |
@@ -355,7 +356,91 @@ substrate.modules.services.web = {
 };
 ```
 
+## Secrets Extension
+
+Adds declarative secrets to host and user configurations via
+[SecretSpec](https://secretspec.dev). Modules declare secrets; the extension
+renders a per-configuration `secretspec.toml` manifest containing declarations
+only — values stay in their providers (1Password, keyring, sops, age, ...) and
+are resolved at runtime, never at activation and never in the Nix store.
+
+### Import
+
+```nix
+imports = [ inputs.substrate.substrateModules.secrets ];
+```
+
+### Options
+
+These live in the target system's module space (NixOS and Home Manager),
+merged per configuration like any other option:
+
+| Option | Description |
+|--------|-------------|
+| `substrate.secrets.entries.<name>` | Secret declaration (description, required, default, prompt, asPath, providers, ref) |
+| `substrate.secrets.providers.<alias>` | Provider URI and optional provider credentials |
+| `substrate.secrets.scopes.<name>.secrets` | Allowlist of entries a service may receive |
+| `substrate.secrets.defaultProviders` | Fallback chain for entries without their own providers |
+
+The generated manifest is placed at `/etc/secretspec.toml` on NixOS and
+`~/.config/secretspec/secretspec.toml` under Home Manager (exported there as
+`$SECRETSPEC_FILE`). `secretspec` is installed automatically; external CLIs a
+provider shells out to (op, sops, age, ...) are added by the consuming
+module or config as usual, keeping the extension provider-agnostic.
+Every declared secret must already exist in its provider — the extension
+never generates or mints values.
+
+### Usage
+
+```nix
+# A nixos-class module declares what it needs and wraps its service:
+{ pkgs, secrets, ... }:
+{
+  substrate.secrets = {
+    providers.team = {
+      uri = "onepassword://Prod";
+      credentials.service_account_token = "env";
+    };
+    entries.GITHUB_TOKEN = {
+      description = "GitHub API token";
+      providers = [ "team" ];
+      ref = { item = "GitHub"; field = "token"; };
+    };
+    scopes.github-mcp.secrets = [ "GITHUB_TOKEN" ];
+  };
+
+  systemd.services.github-mcp = {
+    serviceConfig = {
+      ExecStart = secrets.run {
+        scope = "github-mcp";
+        cmd = "${pkgs.github-mcp}/bin/github-mcp";
+      };
+      # Provider bootstrap credential (see Runtime Model below):
+      EnvironmentFile = "/run/secrets/provider-token.env";
+    };
+  };
+}
+```
+
+Home Manager class modules use the same options; in shells the CLI works
+directly (`secretspec get NAME`, `eval "$(secretspec export)"`) because
+`$SECRETSPEC_FILE` points at the generated manifest.
+
+### Runtime Model
+
+- `secrets.run` wraps a command with `secretspec run` scoped to one scope;
+  resolved values are injected into the child's environment at exec time.
+- Entries with `asPath = true` are materialized as temporary files at
+  resolution, for consumers that insist on a path.
+- Manifest references are store-visible (vault/item/field names, like
+  sops-nix filenames); values are not.
+- Provider credentials are the bootstrap problem the extension deliberately
+  does not solve: feed them via `EnvironmentFile`, the OS keyring, or
+  `secretspec config provider login`.
+- Scopes minimize secret delivery; they are not an authorization boundary.
+
 ## Creating Custom Extensions
+
 
 Extensions are standard NixOS modules:
 

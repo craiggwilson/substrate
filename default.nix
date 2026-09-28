@@ -22,6 +22,7 @@ in
     nixos = import ./extensions/nixos;
     overlays = import ./extensions/overlays;
     packages = import ./extensions/packages;
+    secrets = import ./extensions/secrets;
     shells = import ./extensions/shells;
     tags = import ./extensions/tags;
     types = import ./extensions/types;

@@ -27,6 +27,7 @@ substrate/
 │   ├── nixos/           # NixOS configuration builder
 │   ├── overlays/        # Overlay management
 │   ├── packages/        # Package definitions
+│   ├── secrets/         # Declarative secrets (SecretSpec)
 │   ├── shells/          # Development shells
 │   ├── tags/            # Tag-based module filtering
 │   └── types/           # Custom type definitions
