@@ -1,10 +1,11 @@
-# Option namespace shared by the NixOS and Home Manager classes. Included via
-# imports from each class module; the substrate secrets extension pushes those
-# modules into the appropriate configurations, so any class module can declare
-# secrets without referencing the extension itself.
+# Top-level `secretspec` namespace, shared by the NixOS and Home Manager
+# classes and named after the tool it configures (like `sops` or `age`).
+# Included via imports from each class module; the substrate secrets extension
+# pushes those modules into the appropriate configurations, so any class module
+# can declare secrets without referencing the extension itself.
 { lib, ... }:
 {
-  options.substrate.secrets = {
+  options.secretspec = {
     entries = lib.mkOption {
       type = lib.types.attrsOf (
         lib.types.submodule {
@@ -47,7 +48,7 @@
                 "keyring"
               ];
               description = ''
-                Ordered fallback chain of provider aliases (from substrate.secrets.providers)
+                Ordered fallback chain of provider aliases (from secretspec.providers)
                 or full provider URIs. Empty means the profile defaults.
               '';
             };

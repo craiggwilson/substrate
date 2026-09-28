@@ -1,4 +1,4 @@
-# NixOS class module: collects substrate.secrets declarations from the host
+# NixOS class module: collects secretspec declarations from the host
 # configuration, renders the secretspec manifest, and places it at a fixed
 # path. No secret values are written; services resolve at runtime.
 {
@@ -12,7 +12,7 @@ let
     paths
     render
     ;
-  cfg = config.substrate.secrets;
+  cfg = config.secretspec;
 
   manifestFile = pkgs.writeText "secretspec.toml" (render {
     project = config.networking.hostName;

@@ -58,6 +58,16 @@ let
 
   hasClass = class: builtins.elem class settings.supportedClasses;
 
+  # Collect modules contributed for a given class, applying each matching
+  # contributor to the build context. Builders call this with the class they
+  # speak; contributions targeting other classes are ignored, so a
+  # contribution is only ever loaded where its destination extension exists.
+  contributionsFor =
+    class: context:
+    lib.concatMap (c: c.contribute context) (
+      builtins.filter (c: c.class == class) settings.contributors
+    );
+
   # Resolve a flake input by the role it plays (e.g., "nixpkgs"), preferring an
   # explicit substrate.settings.inputs entry over an input of the same name.
   # Note: the throw must stay parenthesized; `a or b or throw "x"` parses as a
@@ -82,6 +92,7 @@ in
       unique
       findModulesForClass
       extraArgsGenerator
+      contributionsFor
       hasClass
       resolveInput
       ;

@@ -92,14 +92,14 @@ let
     modules = [
       ../../extensions/secrets/options.nix
       {
-        config.substrate.secrets = {
+        config.secretspec = {
           entries.GITHUB_TOKEN.description = "from module one";
           entries.API_KEY.required = false;
           providers.team.uri = "onepassword://Prod";
         };
       }
       {
-        config.substrate.secrets = {
+        config.secretspec = {
           entries.CA_BUNDLE.asPath = true;
           providers.team.credentials.service_account_token = "env";
           providers.local.uri = "keyring://";
@@ -128,8 +128,8 @@ let
   hostArgs = moduleArgsFor { name = "unsouled"; };
   userArgs = moduleArgsFor null;
 
-  contributed = builtins.head eval.config.substrate.settings.perHostContributors { };
-  contributedUsers = builtins.head eval.config.substrate.settings.perUserContributors { };
+  contributed = eval.config.substrate.lib.contributionsFor "nixos" { };
+  contributedUsers = eval.config.substrate.lib.contributionsFor "homeManager" { };
 in
 runTests "Secrets Extension Tests" {
   # --- manifest rendering (pure) ---
@@ -233,7 +233,7 @@ runTests "Secrets Extension Tests" {
   optionsMergeAcrossModules = {
     check =
       let
-        cfg = optionsEval.config.substrate.secrets;
+        cfg = optionsEval.config.secretspec;
       in
       builtins.length (builtins.attrNames cfg.entries) == 3
       && cfg.entries.GITHUB_TOKEN.description == "from module one"
@@ -245,7 +245,7 @@ runTests "Secrets Extension Tests" {
   optionsRenderMerged = {
     check =
       let
-        cfg = optionsEval.config.substrate.secrets;
+        cfg = optionsEval.config.secretspec;
         out = render {
           project = "unsouled";
           inherit (cfg)
@@ -266,8 +266,22 @@ runTests "Secrets Extension Tests" {
     check = contributed == [ ../../extensions/secrets/nixos-module.nix ];
   };
 
-  helperOnlyForHostBuilds = {
-    check = hostArgs ? secrets && !(userArgs ? secrets);
+  helperAvailableInBothBuilds = {
+    check = hostArgs ? secrets && userArgs ? secrets;
+  };
+
+  userManifestPathUsesXdgFallback = {
+    check = hasInfix ''{XDG_CONFIG_HOME:-$HOME/.config}/secretspec/secretspec.toml'' userArgs.secrets.manifestPath;
+  };
+
+  secretsPrefixComposesWithoutSystemdAt = {
+    check =
+      let
+        pfx = hostArgs.secrets.prefix { scope = "github"; };
+      in
+      hasInfix "--file /etc/secretspec.toml" pfx
+      && hasInfix "--scope github" pfx
+      && lib.strings.hasSuffix " --" pfx;
   };
 
   helperRunString = {

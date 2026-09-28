@@ -184,6 +184,32 @@ let
         && eval.config.substrate.hosts.testhost.nixpkgsConfig.cudaSupport == true
         && eval.config.substrate.users.testuser.nixpkgsConfig.permittedInsecurePackages == [ "x-1" ];
     };
+
+    # Test 13: hosts build a system configuration by default
+    hostUsersOnlyDefaultFalse = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.hosts.testhost = { };
+            }
+          ];
+        in
+        eval.config.substrate.hosts.testhost.usersOnly == false;
+    };
+
+    # Test 14: hosts can be declared home-only (usersOnly = true)
+    hostUsersOnlySettable = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.hosts.homey.usersOnly = true;
+            }
+          ];
+        in
+        eval.config.substrate.hosts.homey.usersOnly == true;
+    };
   };
 in
 runTests "Hosts & Users Tests" tests

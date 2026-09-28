@@ -18,8 +18,7 @@ let
 
             Examples:
               - finder.find [hostcfg] - find modules for host only
-              - finder.find [hostcfg usercfg] - find modules for combined host+user context
-              - finder.find [usercfg] - find modules for user only (standalone home-manager)
+              - finder.find [hostcfg usercfg] - find modules for combined host+user context (NixOS-embedded and host-scoped home-manager)
           '';
         };
       };

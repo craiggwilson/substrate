@@ -1,4 +1,4 @@
-# Pure SecretSpec manifest generation: substrate.secrets configuration ->
+# Pure SecretSpec manifest generation: the secretspec option namespace ->
 # secretspec.toml text. Declarations only; secret values never appear here and
 # are resolved by the secretspec CLI at runtime.
 { lib }:
@@ -107,6 +107,7 @@ let
   # for empty bodies.
   section = header: body: lib.optionalString (body != "") "\n${header}\n${body}\n";
   nixosEtcKey = "secretspec.toml";
+  homeManagerRel = "secretspec/secretspec.toml";
 in
 {
   # Where each class's generated manifest lives at runtime. The NixOS path is
@@ -115,7 +116,12 @@ in
   paths = {
     nixosEtcKey = nixosEtcKey;
     nixosManifest = "/etc/${nixosEtcKey}";
-    homeManagerManifest = "secretspec/secretspec.toml";
+    homeManagerManifest = homeManagerRel;
+    # Shell-expandable form of the Home Manager manifest location, for
+    # runtime helpers that are built before the user's configHome is known.
+    # Split concatenation: a double-quoted string cannot hold a literal
+    # `${...}` (the sequence is parsed as interpolation).
+    homeManagerUserManifest = "$" + "{XDG_CONFIG_HOME:-$HOME/.config}/${homeManagerRel}";
   };
 
   render =

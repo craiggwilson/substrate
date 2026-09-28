@@ -37,7 +37,6 @@ Add substrate as a flake input:
         settings.tags = [ "core" "desktop" "laptop" ];
 
         users.alice = {
-          system = "x86_64-linux";
           tags = [ "desktop" ];
         };
 

@@ -1,4 +1,4 @@
-{ lib, config, ... }:
+{ lib, ... }:
 {
   options.substrate.users = lib.mkOption {
     type = lib.types.attrsOf (
@@ -23,13 +23,9 @@
                 type = lib.types.str;
                 default = profile';
               };
-              system = lib.mkOption {
-                type = lib.types.enum config.substrate.settings.systems;
-                default = builtins.currentSystem;
-              };
               nixpkgsConfig = lib.mkOption {
                 type = lib.types.attrsOf lib.types.anything;
-                description = "Additional nixpkgs configuration for this user's standalone package set, merged over substrate.settings.nixpkgsConfig. Users on NixOS hosts share the host's package set instead.";
+                description = "Additional nixpkgs configuration for this user's host-scoped package sets, merged over substrate.settings.nixpkgsConfig and under the host's nixpkgsConfig. Users on system hosts share the host's package set instead.";
                 default = { };
               };
 

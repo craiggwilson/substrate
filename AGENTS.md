@@ -23,14 +23,15 @@ substrate/
 │   └── users.nix        # User configuration type
 ├── extensions/          # Optional extension modules
 │   ├── home-manager/    # Home Manager configuration builder
-│   ├── jail/            # Jail/container support
+│   ├── jail/            # Bubblewrap isolation via jail.nix (wrap.withBubblewrap)
 │   ├── nixos/           # NixOS configuration builder
 │   ├── overlays/        # Overlay management
 │   ├── packages/        # Package definitions
 │   ├── secrets/         # Declarative secrets (SecretSpec)
 │   ├── shells/          # Development shells
 │   ├── tags/            # Tag-based module filtering
-│   └── types/           # Custom type definitions
+│   ├── types/           # Custom type definitions
+│   └── wrappers/        # Declarative executable wrapping (wrap module arg)
 ├── builders/            # Build system adapters
 │   └── flake-parts/     # flake-parts integration
 ├── tests/               # Test suite
@@ -75,14 +76,26 @@ Extensions add capabilities by:
    `{ build = fn; }` where fn receives the category's context
 3. Registering new finders in `substrate.finders`
 4. Adding to `substrate.settings.supportedClasses`
-5. Pushing module contributors to `substrate.settings.perHostContributors` /
-   `perUserContributors` (builders consume these without knowing which
-   extension pushed; e.g., home-manager integrates itself into NixOS hosts
-   this way instead of the nixos extension referencing it)
+5. Pushing module contributors to `substrate.settings.contributors`, each entry
+   declaring the `class` it targets; builders consume only the entries whose
+   class they speak (via `substrate.lib.contributionsFor`), without knowing
+   which extension pushed them; e.g., home-manager integrates itself into NixOS
+   hosts with a `class = "nixos"` entry instead of the nixos extension
+   referencing it. An extension targeting several builders registers one entry
+   per class; entries whose class has no enabled builder are simply not loaded.
 6. Contributing module arguments via `substrate.settings.extraArgsGenerators`
    (each returned key becomes a module argument; generators receive
    `{ hostcfg, usercfg, inputs, pkgs }`, so helpers can be returned already
    bound to `pkgs`; e.g., the jail extension provides `jailLib`)
+7. Registering into another extension's push registry, so extensions can
+   extend each other's APIs without either side referencing the other; e.g.,
+   jail contributes `substrate.settings.wrappers.backends.isolate` and the
+   wrappers extension surfaces every registered backend at key `foo` as `wrap.withFoo` (and
+   `settings.wrappers.defaultBackend` picks where the bare `wrap` functor goes).
+   When the target option is owned by a possibly-absent extension, guard the
+   definition with `lib.optionalAttrs (options.<path> ? <name>)` — a plain
+   definition (or even `mkIf false`) against an undeclared option is an
+   evaluation error.
 
 Core must remain implementation-agnostic: hooks are named after core
 concepts (hosts, users, package sets), never after specific builders or

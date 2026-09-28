@@ -33,7 +33,7 @@
       type = lib.types.attrsOf lib.types.anything;
       description = ''
         Base nixpkgs configuration baked into every package set substrate
-        creates (host and standalone user package sets). Per-entity overrides
+        creates (host and host-scoped user package sets). Per-entity overrides
         go in substrate.hosts.<name>.nixpkgsConfig or
         substrate.users.<name>.nixpkgsConfig. Package sets must be configured
         at instance creation, so setting nixpkgs.config inside a host/user
@@ -55,38 +55,53 @@
         configurations. This is the shared extension point for helpers that
         modules need, whether static or dependent on build context.
         Receives: { hostcfg, usercfg, inputs, pkgs }
-        hostcfg is null for standalone user configurations and usercfg is null
-        for host configurations; pkgs matches the build target
+        usercfg is null for host configurations; hostcfg is null for no
+        current builder (every user build is host-scoped or host-integrated)
+        and generators should not assume it; pkgs matches the build target
         (host system pkgs for host builds, user system pkgs for user builds).
         Returns: attrset merged into specialArgs
       '';
       default = [ ];
     };
 
-    perHostContributors = lib.mkOption {
-      type = lib.types.listOf (lib.types.functionTo (lib.types.listOf lib.types.unspecified));
-      description = ''
-        Contributors that add modules to each host configuration.
-        Each function receives { inputs, substrate, hostname, hostcfg, userConfigs, pkgs }
-        and returns a list of modules appended to the host's module list.
-        Contributors should accept extra context fields (end patterns with ...).
-        Extensions push contributions here; host builders consume them,
-        so neither side needs to know about the other.
-      '';
-      default = [ ];
-    };
+    contributors = lib.mkOption {
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            class = lib.mkOption {
+              type = lib.types.str;
+              description = ''
+                The module class this contribution is destined for (e.g., "nixos",
+                "homeManager"). Only the builder that speaks this class consumes it,
+                so a contribution is never loaded into a configuration whose target
+                extension is absent. It is normal for a class to have no builder:
+                an extension may target several builders, some of which a given
+                configuration does not enable.
+              '';
+            };
 
-    perUserContributors = lib.mkOption {
-      type = lib.types.listOf (lib.types.functionTo (lib.types.listOf lib.types.unspecified));
-      description = ''
-        Contributors that add modules to each user configuration.
-        Each function receives { inputs, substrate, userName, usercfg, pkgs }
-        and returns a list of modules appended to the user's module list.
-        Contributors should accept extra context fields (end patterns with ...).
-        Extensions push contributions here; user builders consume them,
-        so neither side needs to know about the other.
-      '';
+            contribute = lib.mkOption {
+              type = lib.types.functionTo (lib.types.listOf lib.types.unspecified);
+              description = ''
+                Function that receives the build context for the class and returns a
+                list of modules to append to each matching configuration. The context
+                shape follows the class: host classes receive
+                { inputs, substrate, hostname, hostcfg, userConfigs, pkgs }, user
+                classes receive { inputs, substrate, userName, usercfg, pkgs }.
+                Contribute functions should accept extra context fields (end patterns
+                with ...).
+              '';
+            };
+          };
+        }
+      );
       default = [ ];
+      description = ''
+        Contributors that add modules to configurations. Each entry declares the
+        class it targets; builders consume only the entries whose class they speak,
+        via substrate.lib.contributionsFor. Extensions push contributions here so
+        neither side needs to know about the other.
+      '';
     };
   };
 }

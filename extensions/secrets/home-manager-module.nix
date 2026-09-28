@@ -1,4 +1,4 @@
-# Home Manager class module: collects substrate.secrets declarations from a
+# Home Manager class module: collects secretspec declarations from a
 # user configuration, renders the secretspec manifest, and places it under the
 # user's XDG config. No secret values are written; shells and user services
 # resolve at runtime via $SECRETSPEC_FILE.
@@ -13,7 +13,7 @@ let
     paths
     render
     ;
-  cfg = config.substrate.secrets;
+  cfg = config.secretspec;
 
   manifestFile = pkgs.writeText "secretspec.toml" (render {
     project = config.home.username;
