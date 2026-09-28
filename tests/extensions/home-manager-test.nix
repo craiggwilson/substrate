@@ -207,6 +207,36 @@ let
         in
         lib.length modules == 2 && hmModule ? home-manager && hmModule.home-manager.users ? alice;
     };
+
+    # Test 14: per-user contributors reach NixOS-embedded user modules
+    perUserContributorsReachEmbeddedUsers = {
+      check =
+        let
+          eval = evalSubstrateWithHM [
+            {
+              config.substrate.settings.perUserContributors = [
+                (_: [ "sentinel-user-module" ])
+              ];
+            }
+          ];
+          contributor = builtins.head eval.config.substrate.settings.perHostContributors;
+          modules = contributor {
+            inputs = {
+              home-manager.nixosModules.home-manager = { };
+            };
+            substrate = eval.config.substrate;
+            hostname = "testhost";
+            hostcfg = {
+              users = [ "alice" ];
+              system = "x86_64-linux";
+            };
+            userConfigs = [ { name = "alice"; } ];
+            pkgs = { };
+          };
+          userModule = (builtins.elemAt modules 1).home-manager.users.alice;
+        in
+        lib.elem "sentinel-user-module" userModule.imports;
+    };
   };
 in
 runTests "Home-Manager Extension Tests" tests

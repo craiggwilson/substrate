@@ -55,6 +55,7 @@ let
   contributeToHosts =
     {
       inputs,
+      substrate,
       hostname,
       hostcfg,
       userConfigs,
@@ -63,6 +64,23 @@ let
     }:
     let
       homeManagerInput = slib.resolveInput "home-manager" inputs;
+
+      # User builders consume perUserContributors in both paths; NixOS-embedded
+      # users are user configurations too.
+      contributedModulesFor =
+        usercfg:
+        lib.concatMap (
+          f:
+          f {
+            inherit
+              inputs
+              substrate
+              pkgs
+              usercfg
+              ;
+            userName = usercfg.name;
+          }
+        ) settings.perUserContributors;
     in
     [
       homeManagerInput.nixosModules.home-manager
@@ -70,10 +88,12 @@ let
         home-manager =
           let
             mkHomeManagerUserModule = hostcfg: usercfg: {
-              imports = slib.findModulesForClass "homeManager" [
-                hostcfg
-                usercfg
-              ];
+              imports =
+                (slib.findModulesForClass "homeManager" [
+                  hostcfg
+                  usercfg
+                ])
+                ++ contributedModulesFor usercfg;
               # Extra args for home-manager modules (e.g., hasTag from tags extension)
               _module.args = slib.extraArgsGenerator {
                 inherit
