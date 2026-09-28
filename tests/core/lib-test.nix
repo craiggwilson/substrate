@@ -166,6 +166,33 @@ let
         args == { };
     };
 
+    # The generated set is the plain merge of every generator's contribution --
+    # no self-reference. An argument whose value depends on the configuration is
+    # published by a class module writing `_module.args` instead (a generator
+    # runs in the builder, outside the configuration being built), and a class
+    # module extending one does it with lib.mkForce.
+    extraArgsGeneratorMergesPlainly = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.settings.extraArgsGenerators = [
+                (_: { foo = "bar"; })
+              ];
+            }
+          ];
+          args = eval.config.substrate.lib.extraArgsGenerator {
+            hostcfg = null;
+            usercfg = null;
+            inputs = null;
+            pkgs = { };
+          };
+        in
+        args == {
+          foo = "bar";
+        };
+    };
+
     # Test 9: extraArgsGenerator merges multiple generators
     extraArgsGeneratorMerges = {
       check =

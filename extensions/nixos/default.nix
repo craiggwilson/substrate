@@ -13,6 +13,10 @@ let
 
       pkgsConfigFor = hostcfg: settings.nixpkgsConfig // hostcfg.nixpkgsConfig;
 
+      # Home-only hosts (usersOnly = true) carry users and tags but declare
+      # no operating system to build; skipped here.
+      systemHosts = lib.filterAttrs (_: hostcfg: !hostcfg.usersOnly) substrate.hosts;
+
       # One package set per distinct (system, nixpkgs config) pair, shared
       # across hosts. Handed to nixosSystem via nixpkgs.pkgs, so the
       # configuration's own pkgs and the pkgs passed to extraArgsGenerators
@@ -39,7 +43,7 @@ let
               };
             }
           ]
-      ) [ ] (builtins.attrValues substrate.hosts);
+      ) [ ] (builtins.attrValues systemHosts);
 
       hostPkgsFor =
         hostcfg:
@@ -89,24 +93,23 @@ let
           pkgs = hostPkgs;
         };
 
-        # Modules contributed by other extensions (e.g., home-manager integration)
-        contributedModules = lib.concatMap (
-          f:
-          f {
-            inherit
-              inputs
-              substrate
-              hostname
-              hostcfg
-              userConfigs
-              ;
-            pkgs = hostPkgs;
-          }
-        ) settings.perHostContributors;
+        # Modules contributed by other extensions for the nixos class
+        # (e.g., home-manager integration, secrets placement).
+        contributedModules = slib.contributionsFor "nixos" {
+          inherit
+            inputs
+            substrate
+            hostname
+            hostcfg
+            userConfigs
+            ;
+          pkgs = hostPkgs;
+        };
       in
       nixpkgsInput.lib.nixosSystem {
         specialArgs = {
           inherit inputs hostcfg;
+          host = hostname;
         };
         modules = [
           {
@@ -123,7 +126,7 @@ let
         ++ slib.unique (hostNixosModules ++ userNixosModules)
         ++ contributedModules;
       }
-    ) substrate.hosts;
+    ) systemHosts;
 in
 {
   options.substrate.settings.nixosModules = lib.mkOption {

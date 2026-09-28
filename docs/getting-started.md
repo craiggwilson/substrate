@@ -213,7 +213,7 @@ modules.
 Substrate generates standard flake outputs:
 
 - `nixosConfigurations.<hostname>` - NixOS system configurations
-- `homeConfigurations.<username>` - Standalone Home Manager configurations
+- `homeConfigurations.<user>@<host>` - Home Manager for users of `usersOnly` (home-only) hosts
 - `packages.<system>.<name>` - Custom packages
 - `overlays.<name>` - Nixpkgs overlays
 - `devShells.<system>.<name>` - Development shells

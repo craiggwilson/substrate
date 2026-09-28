@@ -44,6 +44,7 @@ Hosts represent machines (physical or virtual). Each host has:
 |--------|------|-------------|
 | `system` | string | Architecture (e.g., `x86_64-linux`) |
 | `users` | list of strings | Users to include in this host's configuration |
+| `usersOnly` | bool (default `false`) | `true` marks the host home-only: users and tags only, no OS config is built |
 
 ```nix
 substrate.hosts.workstation = {
@@ -54,23 +55,23 @@ substrate.hosts.workstation = {
 
 The `users` option references user names defined in `substrate.users`. This creates a typed reference - invalid user names cause evaluation errors.
 
+### Home-only hosts
+
+A host with `usersOnly = true` declares a machine substrate does *not* administer the OS for (a personal laptop, a company machine you only drop Home Manager on). It builds no NixOS configuration, but its name, tags, `system`, and `nixpkgsConfig` shape the Home Manager configs of its users: each user gets a host-scoped configuration keyed `<user>@<host>`, whose modules receive the host as the `host`/`hostcfg` arguments and select on the host's tags - the same context host-integrated users see inside a NixOS build.
+
 ## Users
 
 Users represent user profiles. Each user has:
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `system` | string | Architecture for standalone Home Manager configs |
+| `nixpkgsConfig` | attrs | Per-user nixpkgs config merged into its host-scoped package sets (under the host's) |
 
-```nix
-substrate.users.alice = {
-  system = "x86_64-linux";
-};
-```
+Users attach to hosts via `hosts.<name>.users`:
+1. **Embedded in system hosts** - Home Manager runs inside the host's own configuration
+2. **Host-scoped on home-only hosts** - Built as `homeConfigurations.<user>@<host>`
 
-Users can be:
-1. **Embedded in hosts** - Included via `hosts.<name>.users`
-2. **Standalone** - Built as independent Home Manager configurations
+Substrate never builds a host-less ("vanilla") Home Manager configuration; a
+user attached to no host produces no output. In every module context the
+`host` argument is the machine's name.
 
 ## Modules
 
@@ -181,9 +182,9 @@ substrate.settings = {
   # Extra arguments passed to configurations
   extraArgsGenerators = [ ... ];
 
-  # Modules contributed to every host/user configuration (extensions push into these)
-  perHostContributors = [ ... ];
-  perUserContributors = [ ... ];
+  # Modules contributed to configurations, each declaring its target class
+  # (extensions push into this; builders consume via substrate.lib.contributionsFor)
+  contributors = [ { class = "nixos"; contribute = ...; } ... ];
 };
 ```
 
@@ -254,12 +255,14 @@ Substrate is designed for extension:
 2. **New classes**: Add support for new configuration targets
 3. **New outputs**: Generate additional flake outputs
 4. **New options**: Add configuration options to hosts/users/modules
-5. **Module contributors**: Push modules into host or user builds via
-   `substrate.settings.perHostContributors` / `perUserContributors`. Each
-   contributor is a function that receives build context (`{ inputs, substrate,
-   hostname, hostcfg, userConfigs }` for hosts; `{ inputs, substrate, userName,
-   usercfg }` for users) and returns a list of modules. Builders consume these
-   without knowing which extension produced them, and extensions integrate with
+5. **Module contributors**: Push modules into configurations via
+   `substrate.settings.contributors`. Each entry declares the `class` it targets
+   and a `contribute` function that receives that class's build context (`{ inputs,
+   substrate, hostname, hostcfg, userConfigs }` for host classes; `{ inputs,
+   substrate, userName, usercfg }` for user classes) and returns a list of modules.
+   Builders consume only the entries whose class they speak (via
+   `substrate.lib.contributionsFor`), so a contribution is never loaded into a
+   configuration whose target extension is absent, and extensions integrate with
    builders without those builders being aware (e.g., the home-manager extension
-   registers a `perHostContributors` entry so NixOS hosts get `home-manager`
+   registers a `class = "nixos"` contribution so NixOS hosts get `home-manager`
    configuration without the nixos extension knowing about home-manager).

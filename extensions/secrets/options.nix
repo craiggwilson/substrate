@@ -1,102 +1,214 @@
-# Option namespace shared by the NixOS and Home Manager classes. Included via
-# imports from each class module; the substrate secrets extension pushes those
-# modules into the appropriate configurations, so any class module can declare
-# secrets without referencing the extension itself.
-{ lib, ... }:
+# Top-level `secretspec` namespace, shared by the NixOS and Home Manager
+# classes and named after the tool it configures (like `sops` or `age`).
+# Included via imports from each class module; the substrate secrets extension
+# pushes those modules into the appropriate configurations, so any class module
+# can declare secrets without referencing the extension itself.
+#
+# Import parameters tune the per-class defaults of entries.<name>.file (local
+# materialization policy): filesDir is the default directory for materialized
+# files and owner/group are the default ownership; both belong to the class
+# module that imports this, so options stay class-neutral here.
 {
-  options.substrate.secrets = {
+  lib,
+  filesDir ? "/var/lib/secretspec/files",
+  owner ? "root",
+  group ? "root",
+  ...
+}:
+let
+  # SecretSpec's native address: a store item plus optional sub-components
+  # (config.rs NativeAddress). Shared by entry refs and provider-credential
+  # addresses so both dialects read the same.
+  refType = lib.types.submodule {
+    options = {
+      field = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Field label within the item.";
+      };
+
+      item = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Item name or id holding the secret; required wherever a ref is given.";
+      };
+
+      section = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Section within the item (requires field).";
+      };
+
+      vault = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Override the provider URI's default store for this secret.";
+      };
+
+      version = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Version-pinned read, for stores that support it; defaults to latest.";
+      };
+    };
+  };
+in
+{
+  options.secretspec = {
+    project = lib.mkOption {
+      type = with lib.types; nullOr str;
+      default = null;
+      example = "blackflame";
+      defaultText = lib.literalExpression "config.networking.hostName (nixos) or config.home.username (home-manager)";
+      description = ''
+        Project name recorded in the generated manifest, which secretspec uses to
+        address provider credentials. Defaults to the class module's identity —
+        the hostname on NixOS, the username under Home Manager — so the render
+        stays a pure function of this option subtree. Set it explicitly when a
+        wrapper must read the same manifest as a configuration built elsewhere.
+      '';
+    };
+
     entries = lib.mkOption {
       type = lib.types.attrsOf (
-        lib.types.submodule {
-          options = {
-            description = lib.mkOption {
-              type = lib.types.str;
-              default = "";
-              description = "Human-readable purpose of the secret, shown by secretspec tooling.";
-            };
-
-            required = lib.mkOption {
-              type = lib.types.bool;
-              default = true;
-              description = "Whether resolution fails when the secret is missing.";
-            };
-
-            default = lib.mkOption {
-              type = lib.types.nullOr lib.types.str;
-              default = null;
-              description = "Committed fallback value (never use for actual secrets).";
-            };
-
-            prompt = lib.mkOption {
-              type = lib.types.bool;
-              default = false;
-              description = "Prompt for the value at resolution time when missing.";
-            };
-
-            asPath = lib.mkOption {
-              type = lib.types.bool;
-              default = false;
-              description = "Materialize to a temporary file at resolution and expose its path.";
-            };
-
-            providers = lib.mkOption {
-              type = lib.types.listOf lib.types.str;
-              default = [ ];
-              example = [
-                "team"
-                "keyring"
-              ];
-              description = ''
-                Ordered fallback chain of provider aliases (from substrate.secrets.providers)
-                or full provider URIs. Empty means the profile defaults.
-              '';
-            };
-
-            ref = lib.mkOption {
-              type = lib.types.nullOr (
-                lib.types.submodule {
-                  options = {
-                    vault = lib.mkOption {
-                      type = lib.types.nullOr lib.types.str;
-                      default = null;
-                      description = "Override the provider URI's default store for this secret.";
-                    };
-                    item = lib.mkOption {
-                      type = lib.types.str;
-                      default = "";
-                      description = "Item name or id holding the secret.";
-                    };
-                    field = lib.mkOption {
-                      type = lib.types.nullOr lib.types.str;
-                      default = null;
-                      description = "Field label within the item.";
-                    };
-                    section = lib.mkOption {
-                      type = lib.types.nullOr lib.types.str;
-                      default = null;
-                      description = "Section within the item (requires field).";
-                    };
-                  };
-                }
-              );
-              default = null;
-              example = {
-                vault = "Infra";
-                item = "Postgres";
-                field = "connection-url";
+        lib.types.submodule (
+          { name, ... }:
+          {
+            options = {
+              description = lib.mkOption {
+                type = lib.types.str;
+                description = "Human-readable purpose of the secret, shown by secretspec tooling. Required: secretspec rejects a manifest whose secrets lack one.";
               };
-              description = ''
-                Point at a secret that already exists in the provider store,
-                instead of the conventional secretspec/{project}/{profile}/{key}
-                location. A native op:// reference translates as
-                op://vault/item/field -> { vault; item; field; }.
-              '';
+
+              required = lib.mkOption {
+                type = lib.types.bool;
+                default = true;
+                description = "Whether resolution fails when the secret is missing.";
+              };
+
+              default = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "Committed fallback value (never use for actual secrets).";
+              };
+
+              prompt = lib.mkOption {
+                type = lib.types.bool;
+                default = false;
+                description = "Prompt for the value at resolution time when missing.";
+              };
+
+              composed = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+
+                description = ''
+                  A template string whose `''${UPPERCASE_NAME}` placeholders
+                  are substituted with the values of other declared entries at
+                  resolution time; everything else is literal. Mutually
+                  exclusive with ref, providers, default, and asPath. Combine
+                  with file materialization to render template-like files.
+                '';
+              };
+
+              asPath = lib.mkOption {
+                type = lib.types.bool;
+                default = false;
+                description = "Materialize to a temporary file at resolution and expose its path.";
+              };
+
+              # Local placement policy: resolves the entry at runtime and writes
+              # its value to path. null = the entry is consumed as an
+              # environment variable or through the secretspec CLI only.
+              file = lib.mkOption {
+                type = lib.types.nullOr (
+                  lib.types.submodule {
+                    options = {
+                      path = lib.mkOption {
+                        type = lib.types.str;
+                        default = "${filesDir}/${name}";
+                        description = "Runtime file the entry's value is written to, resolved at materialization time; never a Nix store path.";
+                      };
+
+                      fileOwner = lib.mkOption {
+                        type = lib.types.str;
+                        default = owner;
+                        description = "User who owns the materialized file.";
+                      };
+
+                      fileGroup = lib.mkOption {
+                        type = lib.types.str;
+                        default = group;
+                        description = "Group who owns the materialized file.";
+                      };
+
+                      mode = lib.mkOption {
+                        type = lib.types.str;
+                        default = "0600";
+                        description = "Permissions of the materialized file, octal.";
+                      };
+                    };
+                  }
+                );
+                default = null;
+                description = ''
+                  Materialization policy: resolves the entry at runtime and writes
+                  its value to path with the given ownership and mode. Mutually
+                  exclusive with asPath.
+                '';
+              };
+
+              providers = lib.mkOption {
+                type = lib.types.listOf lib.types.str;
+                default = [ ];
+                example = [
+                  "team"
+                  "keyring"
+                ];
+                description = ''
+                  Ordered fallback chain of provider aliases (from secretspec.providers)
+                  or full provider URIs. Empty means the profile defaults.
+                '';
+              };
+
+              ref = lib.mkOption {
+                type = lib.types.nullOr refType;
+                default = null;
+                example = {
+                  vault = "Infra";
+                  item = "Postgres";
+                  field = "connection-url";
+                };
+                description = ''
+                  Point at a secret that already exists in the provider store,
+                  instead of the conventional secretspec/{project}/{profile}/{key}
+                  location. A native op:// reference translates as
+                  op://vault/item/field -> { vault; item; field; }.
+                '';
+              };
             };
-          };
-        }
+          }
+        )
       );
       default = { };
       description = "Declared secrets, keyed by secret name (becomes the environment variable name).";
+    };
+
+    manifestPath = lib.mkOption {
+      type = with lib.types; nullOr str;
+      default = null;
+      example = "/var/lib/secrets/secretspec.toml";
+      description = ''
+        Where the generated manifest is read from at runtime. null (the
+        default) reads it straight from the store, so there is nothing to place
+        on disk. An absolute path is honored verbatim: the manifest is linked
+        there with a systemd tmpfiles symlink, and its parent directory is
+        created if missing. The class module's own consumers follow this one
+        path: $SECRETSPEC_FILE and the materialization unit. A wrapper does not:
+        it renders the manifest from this same configuration, so it reads the
+        store file and needs no path at all unless it deliberately points
+        elsewhere with `secrets.manifest`.
+      '';
     };
 
     providers = lib.mkOption {
@@ -109,13 +221,60 @@
               example = "onepassword://Infra";
               description = "Provider URI (e.g., onepassword://vault, keyring://, sops://file).";
             };
+            package = lib.mkOption {
+              type = with lib.types; nullOr package;
+              default = null;
+              description = ''
+                The CLI this provider shells out to (op, sops, age, bw, ...),
+                declared beside the provider that needs it. It reaches the PATH
+                of the runtime contexts secretspec runs in — the materialization
+                units and the wrappers built here — and nothing else.
+
+                Declared in the configuration's module, so it comes from that
+                host's package set.
+
+                null means the provider needs no external CLI: `keyring://` is
+                built in, and a provider whose CLI is already on the caller's
+                PATH does not need it again. A URI that does shell out to a CLI
+                without one declared fails at exec time with SecretSpec's own
+                "no provider backend configured".
+              '';
+            };
+
             credentials = lib.mkOption {
-              type = lib.types.attrsOf lib.types.str;
+              type = lib.types.attrsOf (
+                lib.types.either lib.types.str (
+                  lib.types.submodule {
+                    options = {
+                      provider = lib.mkOption {
+                        type = lib.types.str;
+                        description = "Provider spec (name, alias, or URI) the credential is read from.";
+                      };
+
+                      ref = lib.mkOption {
+                        type = lib.types.nullOr refType;
+                        default = null;
+                        description = ''
+                          Explicit coordinates in that provider; null reads the
+                          credential at the source's convention address
+                          ({project}/_provider/{credential name}).
+                        '';
+                      };
+                    };
+                  }
+                )
+              );
               default = { };
               example = {
-                service_account_token = "env";
+                service_account_token = "keyring";
               };
-              description = "Provider credentials and the source each is read from.";
+              description = ''
+                Provider credentials, each naming the provider that supplies it.
+                A bare string is a provider spec read at that provider's
+                convention address; the table form pins an explicit address, so
+                the credential can live at a path of its own or in an item field
+                of another secret store.
+              '';
             };
           };
         }

@@ -35,6 +35,12 @@ let
     in
     extractClassModules class mods;
 
+  # The module arguments every generator contributes, as the builder passes them
+  # into a target configuration. An arg whose value depends on that
+  # configuration cannot come from here — a generator runs in the builder, outside
+  # the configuration being built — so it is published by a class module writing
+  # `_module.args` instead. A class module extending an argument another
+  # extension publishes does it the same way, with lib.mkForce.
   extraArgsGenerator =
     {
       hostcfg,
@@ -57,6 +63,16 @@ let
     );
 
   hasClass = class: builtins.elem class settings.supportedClasses;
+
+  # Collect modules contributed for a given class, applying each matching
+  # contributor to the build context. Builders call this with the class they
+  # speak; contributions targeting other classes are ignored, so a
+  # contribution is only ever loaded where its destination extension exists.
+  contributionsFor =
+    class: context:
+    lib.concatMap (c: c.contribute context) (
+      builtins.filter (c: c.class == class) settings.contributors
+    );
 
   # Resolve a flake input by the role it plays (e.g., "nixpkgs"), preferring an
   # explicit substrate.settings.inputs entry over an input of the same name.
@@ -82,6 +98,7 @@ in
       unique
       findModulesForClass
       extraArgsGenerator
+      contributionsFor
       hasClass
       resolveInput
       ;

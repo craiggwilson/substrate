@@ -151,35 +151,27 @@ let
         !(eval.config.substrate.settings ? nixosModules);
     };
 
-    # Test 10: perHostContributors defaults to empty without the extension
-    perHostContributorsDefaultEmpty = {
+    # Test 10: contributors defaults to empty without the extension
+    contributorsDefaultEmpty = {
       check =
         let
           eval = evalSubstrateBase [ ];
         in
-        eval.config.substrate.settings.perHostContributors == [ ];
+        eval.config.substrate.settings.contributors == [ ];
     };
 
-    # Test 11: perUserContributors defaults to empty without the extension
-    perUserContributorsDefaultEmpty = {
-      check =
-        let
-          eval = evalSubstrateBase [ ];
-        in
-        eval.config.substrate.settings.perUserContributors == [ ];
-    };
-
-    # Test 12: home-manager extension pushes one per-host contributor
-    homeManagerPushesPerHostContributor = {
+    # Test 11: home-manager extension pushes one nixos-class contributor
+    homeManagerPushesNixosContributor = {
       check =
         let
           eval = evalSubstrateWithHM [ ];
+          entries = eval.config.substrate.settings.contributors;
         in
-        lib.length eval.config.substrate.settings.perHostContributors == 1;
+        lib.length entries == 1 && builtins.head entries ? class;
     };
 
-    # Test 13: the per-host contributor produces a home-manager module per user
-    perHostContributorProducesHomeManagerModule = {
+    # Test 12: contributionsFor "nixos" produces a home-manager module per user
+    contributionsForNixosProducesHomeManagerModule = {
       check =
         let
           eval = evalSubstrateWithHM [
@@ -189,8 +181,7 @@ let
               };
             }
           ];
-          contributor = builtins.head eval.config.substrate.settings.perHostContributors;
-          modules = contributor {
+          modules = eval.config.substrate.lib.contributionsFor "nixos" {
             inputs = {
               home-manager.nixosModules.home-manager = { };
             };
@@ -208,19 +199,40 @@ let
         lib.length modules == 2 && hmModule ? home-manager && hmModule.home-manager.users ? alice;
     };
 
-    # Test 14: per-user contributors reach NixOS-embedded user modules
-    perUserContributorsReachEmbeddedUsers = {
+    # Test 13: contributionsFor ignores other classes
+    contributionsForFiltersByClass = {
+      check =
+        let
+          eval = evalSubstrateBase [
+            {
+              config.substrate.settings.contributors = [
+                {
+                  class = "homeManager";
+                  contribute = _: [ "hm-module" ];
+                }
+              ];
+            }
+          ];
+        in
+        eval.config.substrate.lib.contributionsFor "nixos" { } == [ ]
+        && eval.config.substrate.lib.contributionsFor "homeManager" { } == [ "hm-module" ];
+    };
+
+    # Test 14: homeManager-class contributions reach NixOS-embedded users
+    homeManagerContributionsReachEmbeddedUsers = {
       check =
         let
           eval = evalSubstrateWithHM [
             {
-              config.substrate.settings.perUserContributors = [
-                (_: [ "sentinel-user-module" ])
+              config.substrate.settings.contributors = [
+                {
+                  class = "homeManager";
+                  contribute = _: [ "sentinel-user-module" ];
+                }
               ];
             }
           ];
-          contributor = builtins.head eval.config.substrate.settings.perHostContributors;
-          modules = contributor {
+          modules = eval.config.substrate.lib.contributionsFor "nixos" {
             inputs = {
               home-manager.nixosModules.home-manager = { };
             };
@@ -236,6 +248,95 @@ let
           userModule = (builtins.elemAt modules 1).home-manager.users.alice;
         in
         lib.elem "sentinel-user-module" userModule.imports;
+    };
+
+    # Test 15: a user attached to no host builds nothing (no vanilla config)
+    userWithNoHostBuildsNothing = {
+      check =
+        let
+          eval = evalSubstrateWithHM [
+            {
+              config.substrate.users.alice = { };
+            }
+          ];
+          configs = (builtins.head eval.config.substrate.outputs.global.homeConfigurations).build {
+            inputs = {
+              # Stub inputs so the builder runs its real code path without
+              # evaluating a second nixpkgs or a full home-manager config.
+              nixpkgs = pkgs.writeText "fake-nixpkgs" "_: { }";
+              home-manager = {
+                lib.homeManagerConfiguration = args: {
+                  inherit (args) extraSpecialArgs;
+                };
+              };
+            };
+            substrate = eval.config.substrate;
+          };
+        in
+        configs == { };
+    };
+
+    # Test 16: a user of a home-only host gets a host-scoped config keyed
+    # <user>@<host> whose host/hostcfg/userName arguments are populated
+    homeOnlyHostGetsHostScopedConfig = {
+      check =
+        let
+          eval = evalSubstrateWithHM [
+            {
+              config.substrate.users.alice = { };
+              config.substrate.hosts.homey = {
+                system = "x86_64-linux";
+                usersOnly = true;
+                users = [ "alice" ];
+              };
+            }
+          ];
+          configs = (builtins.head eval.config.substrate.outputs.global.homeConfigurations).build {
+            inputs = {
+              nixpkgs = pkgs.writeText "fake-nixpkgs" "_: { }";
+              home-manager = {
+                lib.homeManagerConfiguration = args: {
+                  inherit (args) extraSpecialArgs;
+                };
+              };
+            };
+            substrate = eval.config.substrate;
+          };
+        in
+        # only the host-scoped config exists - no vanilla one alongside it
+        builtins.attrNames configs == [ "alice@homey" ]
+        && configs."alice@homey".extraSpecialArgs.host == "homey"
+        && configs."alice@homey".extraSpecialArgs.hostcfg.name == "homey"
+        && configs."alice@homey".extraSpecialArgs.userName == "alice";
+    };
+
+    # Test 17: a system host (usersOnly = false, the default) yields no
+    # homeConfigurations entry (its HM is delivered by host-integration in NixOS)
+    systemHostYieldsNoHostScopedConfig = {
+      check =
+        let
+          eval = evalSubstrateWithHM [
+            {
+              config.substrate.users.alice = { };
+              config.substrate.hosts.server = {
+                system = "x86_64-linux";
+                users = [ "alice" ];
+              };
+            }
+          ];
+          configs = (builtins.head eval.config.substrate.outputs.global.homeConfigurations).build {
+            inputs = {
+              nixpkgs = pkgs.writeText "fake-nixpkgs" "_: { }";
+              home-manager = {
+                lib.homeManagerConfiguration = args: {
+                  inherit (args) extraSpecialArgs;
+                };
+              };
+            };
+            substrate = eval.config.substrate;
+          };
+        in
+        configs == { };
     };
   };
 in

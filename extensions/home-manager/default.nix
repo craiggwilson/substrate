@@ -6,52 +6,99 @@ let
   # All overlays come from settings.overlays (extensions add theirs there too)
   allOverlays = settings.overlays or [ ];
 
+  # Home Manager configurations exist only for users of home-only hosts
+  # (usersOnly = true); users of system hosts are delivered by the
+  # host-integration contribution inside the host's own configuration.
+  # A user attached to no host builds nothing: substrate never produces a
+  # host-less ("vanilla") Home Manager configuration.
   mkHomeConfigurations =
     { inputs, substrate }:
     let
       nixpkgsInput = slib.resolveInput "nixpkgs" inputs;
       homeManagerInput = slib.resolveInput "home-manager" inputs;
-    in
-    lib.mapAttrs (
-      userName: usercfg:
-      let
-        userPkgs = import nixpkgsInput {
-          localSystem = usercfg.system;
-          overlays = allOverlays;
-          config = settings.nixpkgsConfig // usercfg.nixpkgsConfig;
-        };
-        extraArgs = slib.extraArgsGenerator {
-          inherit usercfg inputs;
-          hostcfg = null;
-          pkgs = userPkgs;
-        };
-        contributedModules = lib.concatMap (
-          f:
-          f {
+
+      # One host-scoped Home Manager configuration, keyed <user>@<host>.
+      # It sees the host's architecture, nixpkgs config, name (module
+      # argument `host`), full host config (`hostcfg`), and host tags (via
+      # the finder and hasTag), exactly as host-integrated users do inside
+      # a NixOS build.
+      mkConfig =
+        {
+          userName,
+          usercfg,
+          hostname,
+          hostcfg,
+        }:
+        let
+          userPkgs = import nixpkgsInput {
+            localSystem = hostcfg.system;
+            overlays = allOverlays;
+            config = settings.nixpkgsConfig // usercfg.nixpkgsConfig // hostcfg.nixpkgsConfig;
+          };
+          extraArgs = slib.extraArgsGenerator {
+            inherit
+              usercfg
+              hostcfg
+              inputs
+              ;
+            pkgs = userPkgs;
+          };
+          contributedModules = slib.contributionsFor "homeManager" {
             inherit
               inputs
               substrate
               userName
               usercfg
+              hostcfg
+              hostname
               ;
             pkgs = userPkgs;
-          }
-        ) settings.perUserContributors;
-      in
-      homeManagerInput.lib.homeManagerConfiguration {
-        pkgs = userPkgs;
-        extraSpecialArgs = extraArgs // {
-          inherit inputs;
+          };
+        in
+        homeManagerInput.lib.homeManagerConfiguration {
+          pkgs = userPkgs;
+          extraSpecialArgs = extraArgs // {
+            inherit
+              inputs
+              hostcfg
+              userName
+              ;
+            host = hostname;
+          };
+          modules =
+            (settings.homeManagerModules or [ ])
+            ++ (slib.findModulesForClass "homeManager" [
+              hostcfg
+              usercfg
+            ])
+            ++ contributedModules;
         };
-        modules =
-          (settings.homeManagerModules or [ ])
-          ++ (slib.findModulesForClass "homeManager" [ usercfg ])
-          ++ contributedModules;
-      }
-    ) substrate.users;
+    in
+    lib.mergeAttrsList (
+      lib.mapAttrsToList (
+        hostname: hostcfg:
+        if hostcfg.usersOnly then
+          lib.listToAttrs (
+            lib.map (
+              userName:
+              lib.nameValuePair "${userName}@${hostname}" (mkConfig {
+                inherit
+                  userName
+                  hostname
+                  hostcfg
+                  ;
+                usercfg = substrate.users.${userName};
+              })
+            ) hostcfg.users
+          )
+        else
+          { }
+      ) substrate.hosts
+    );
 
   # Integrates Home Manager into host configurations (e.g., NixOS).
-  # Pushed as a per-host contributor so host builders need no knowledge of this extension.
+  # Registered as a nixos-class contribution so host builders need no
+  # knowledge of this extension.
   contributeToHosts =
     {
       inputs,
@@ -65,22 +112,19 @@ let
     let
       homeManagerInput = slib.resolveInput "home-manager" inputs;
 
-      # User builders consume perUserContributors in both paths; NixOS-embedded
-      # users are user configurations too.
+      # User classes are consumed in both paths; NixOS-embedded users are user
+      # configurations too, so homeManager-class contributions reach them here.
       contributedModulesFor =
         usercfg:
-        lib.concatMap (
-          f:
-          f {
-            inherit
-              inputs
-              substrate
-              pkgs
-              usercfg
-              ;
-            userName = usercfg.name;
-          }
-        ) settings.perUserContributors;
+        slib.contributionsFor "homeManager" {
+          inherit
+            inputs
+            substrate
+            pkgs
+            usercfg
+            ;
+          userName = usercfg.name;
+        };
     in
     [
       homeManagerInput.nixosModules.home-manager
@@ -94,15 +138,22 @@ let
                   usercfg
                 ])
                 ++ contributedModulesFor usercfg;
-              # Extra args for home-manager modules (e.g., hasTag from tags extension)
-              _module.args = slib.extraArgsGenerator {
-                inherit
-                  hostcfg
-                  usercfg
-                  inputs
-                  pkgs
-                  ;
-              };
+              # Extra args for home-manager modules (e.g., hasTag from tags extension).
+              # userName matches the host-integration users map key, mirroring the
+              # module argument host-scoped configs receive.
+              _module.args = (
+                slib.extraArgsGenerator {
+                  inherit
+                    hostcfg
+                    usercfg
+                    inputs
+                    pkgs
+                    ;
+                }
+                // {
+                  userName = usercfg.name;
+                }
+              );
             };
           in
           {
@@ -135,7 +186,12 @@ in
 
   config.substrate = {
     settings.supportedClasses = [ "homeManager" ];
-    settings.perHostContributors = [ contributeToHosts ];
+    settings.contributors = [
+      {
+        class = "nixos";
+        contribute = contributeToHosts;
+      }
+    ];
 
     outputs.global.homeConfigurations = [
       {

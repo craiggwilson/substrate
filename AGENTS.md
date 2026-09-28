@@ -23,14 +23,15 @@ substrate/
 │   └── users.nix        # User configuration type
 ├── extensions/          # Optional extension modules
 │   ├── home-manager/    # Home Manager configuration builder
-│   ├── jail/            # Jail/container support
+│   ├── jail/            # Bubblewrap isolation via jail.nix (the bubblewrap contributor)
 │   ├── nixos/           # NixOS configuration builder
 │   ├── overlays/        # Overlay management
 │   ├── packages/        # Package definitions
 │   ├── secrets/         # Declarative secrets (SecretSpec)
 │   ├── shells/          # Development shells
 │   ├── tags/            # Tag-based module filtering
-│   └── types/           # Custom type definitions
+│   ├── types/           # Custom type definitions
+│   └── wrappers/        # Declarative executable wrapping (wrap module arg)
 ├── builders/            # Build system adapters
 │   └── flake-parts/     # flake-parts integration
 ├── tests/               # Test suite
@@ -75,14 +76,60 @@ Extensions add capabilities by:
    `{ build = fn; }` where fn receives the category's context
 3. Registering new finders in `substrate.finders`
 4. Adding to `substrate.settings.supportedClasses`
-5. Pushing module contributors to `substrate.settings.perHostContributors` /
-   `perUserContributors` (builders consume these without knowing which
-   extension pushed; e.g., home-manager integrates itself into NixOS hosts
-   this way instead of the nixos extension referencing it)
-6. Contributing module arguments via `substrate.settings.extraArgsGenerators`
-   (each returned key becomes a module argument; generators receive
-   `{ hostcfg, usercfg, inputs, pkgs }`, so helpers can be returned already
-   bound to `pkgs`; e.g., the jail extension provides `jailLib`)
+5. Pushing module contributors to `substrate.settings.contributors`, each entry
+   declaring the `class` it targets; builders consume only the entries whose
+   class they speak (via `substrate.lib.contributionsFor`), without knowing
+   which extension pushed them; e.g., home-manager integrates itself into NixOS
+   hosts with a `class = "nixos"` entry instead of the nixos extension
+   referencing it. An extension targeting several builders registers one entry
+   per class; entries whose class has no enabled builder are simply not loaded.
+6. Contributing module arguments, by whichever avenue fits what the argument
+   depends on. Both stay open:
+   - `substrate.settings.extraArgsGenerators` for an argument built from build
+     context alone: each returned key becomes a module argument, and generators
+     receive `{ hostcfg, usercfg, inputs, pkgs }`, so helpers can be returned
+     already bound to `pkgs` (e.g., the jail extension provides `jailLib`).
+   - A class module writing `_module.args` for an argument that needs the
+     configuration it belongs to. A generator runs in the builder, *outside* the
+     configuration being built, so there is no `config` there to name; nixpkgs
+     also passes argument values through verbatim rather than applying them, so a
+     closure would arrive unapplied. `wrap` is published this way (see
+     `extensions/wrappers/class-module.nix`) so a contributor hook can read the
+     options declared beside the wrapper.
+   Extend another extension's argument from a class module with `lib.mkForce`.
+   Two plain definitions of the same `_module.args` key conflict, so an argument
+   has exactly one definition.
+7. Registering into another extension's push registry, so extensions can
+   extend each other's APIs without either side referencing the other.
+   The wrappers extension owns the `wrap` module argument: one call, one
+   wrapper. There is one mode — `wrap.package { … }` — because a wrapper wraps a
+   package, and writing a script is nixpkgs' job (`writeShellApplication`,
+   `writeScriptBin`); wrapping the result works like anything else. A spec is the
+   *core vocabulary flat at the top level* (`package`, `env`, `args`, `files`,
+   `prefix`, `stub`, ...) plus at most one key per contributor it names —
+   `secrets.scope`, `bubblewrap.permissions`. An extension contributes
+   `substrate.settings.wrappers.contributors.<name>` and the core renders the
+   rest.
+   A contributor entry is
+   `{ priority, options, prefix, runtimeInputs, setup, program, envNames,
+   context, incompatible }`. It only *adds*: `priority` (required integer,
+   lower = further from the program, ordering the exec chain), `options` (its
+   own submodule under its key), `prefix` (chain fragments), `runtimeInputs`
+   (PATH), `setup` (shell before the chain), `program` (replace the package
+   being wrapped, innermost contributor first), `envNames` (variables its chain
+   introduces, handed to every contributor as `ctx.forwarded` so one that
+   scrubs the environment can pass them on), `context` (anything else it needs,
+   e.g. its own libraries), and `incompatible` (core fields its shape cannot
+   honor — an error, never a silent omission). The core renders every core
+   field itself, so a contributor can add to a wrapper but never drop from it.
+   One shape renders every wrapper: the package tree (`symlinkJoin`) with one
+   executable replaced by a stub. What a contributor contributes changes what the
+   stub runs, never what the output contains — so naming one never costs
+   completions, `man`, or desktop entries (see `render.nix` and `builders.nix`).
+   When the target option is owned by a possibly-absent extension, guard the
+   definition with `lib.optionalAttrs (options.<path> ? <name>)` — a plain
+   definition (or even `mkIf false`) against an undeclared option is an
+   evaluation error.
 
 Core must remain implementation-agnostic: hooks are named after core
 concepts (hosts, users, package sets), never after specific builders or

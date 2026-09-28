@@ -1,13 +1,22 @@
 {
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+  # Dev/test dependency: the jail extension's integration tests run against
+  # the real jail.nix. Consumers provide their own input; the jail extension
+  # resolves it by role via substrate.lib.resolveInput.
+  inputs.jail-nix.url = "sourcehut:~alexdavid/jail.nix";
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      jail-nix,
+      ...
+    }:
     let
       systems = [
         "x86_64-linux"
         "aarch64-linux"
-        "x86_64-darwin"
+        "aarch64-darwin"
         "aarch64-darwin"
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
@@ -17,10 +26,10 @@
       checks = forAllSystems (
         pkgs:
         let
-          mkTest =
-            name: testFile:
+          mkTestWith =
+            name: extraArgs: testFile:
             let
-              testResults = import testFile { inherit pkgs; };
+              testResults = import testFile ({ inherit pkgs; } // extraArgs);
             in
             pkgs.runCommand "substrate-${name}" { } ''
               if ${pkgs.lib.boolToString testResults.allPassed}; then
@@ -33,6 +42,7 @@
                 exit 1
               fi
             '';
+          mkTest = name: mkTestWith name { };
         in
         {
           # Core tests
@@ -46,8 +56,11 @@
           # Extension tests
           extensions-tags-test = mkTest "tags-test" ./tests/extensions/tags-test.nix;
           extensions-home-manager-test = mkTest "home-manager-test" ./tests/extensions/home-manager-test.nix;
-          extensions-jail-test = mkTest "jail-test" ./tests/extensions/jail-test.nix;
+          extensions-jail-test = mkTestWith "jail-test" {
+            jailNix = jail-nix;
+          } ./tests/extensions/jail-test.nix;
           extensions-secrets-test = mkTest "secrets-test" ./tests/extensions/secrets-test.nix;
+          extensions-wrappers-test = mkTest "wrappers-test" ./tests/extensions/wrappers-test.nix;
 
           # Builder tests
           builders-checks-test = mkTest "checks-test" ./tests/builders/checks-test.nix;

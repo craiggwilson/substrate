@@ -71,7 +71,7 @@ The adapter handles two types of outputs:
 
 **Global outputs** (not system-specific):
 - `nixosConfigurations.<hostname>`
-- `homeConfigurations.<username>`
+- `homeConfigurations.<user>@<host>` (home-only hosts only)
 - `overlays.<name>`
 
 ### Builder Arguments
