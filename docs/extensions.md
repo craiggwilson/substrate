@@ -9,6 +9,7 @@ Extensions add capabilities to substrate. Import only what you need.
 | `home-manager` | `substrateModules.home-manager` | Home Manager configuration builder |
 | `nixos` | `substrateModules.nixos` | NixOS configuration builder |
 | `tags` | `substrateModules.tags` | Tag-based module filtering |
+| `theming` | `substrateModules.theming` | Palettes, app theme adapters, runtime theme switcher |
 | `overlays` | `substrateModules.overlays` | Overlay management |
 | `packages` | `substrateModules.packages` | Package definitions |
 | `secrets` | `substrateModules.secrets` | Declarative secrets via SecretSpec |
@@ -501,6 +502,126 @@ directly (`secretspec get NAME`, `eval "$(secretspec export)"`) because
   does not solve: feed them via `EnvironmentFile`, the OS keyring, or
   `secretspec config provider login`.
 - Scopes minimize secret delivery; they are not an authorization boundary.
+
+## Theming Extension
+
+Turns per-app theme wiring from a central convention into a plugin model, in
+three parts:
+
+- **Palette definitions** — pure color data (base16-required, base24-extensible),
+  pushed into `substrate.settings.theming.palettes.<name>`. Any module can
+  reference them.
+- **App adapters** — per-program theme mappings, pushed into
+  `substrate.settings.theming.apps.<name>`: `apply` (rebuild-time option
+  fragments per class), `templates` (prebuilt files for live switching),
+  `onSwitch` (per-theme hook scripts the switcher runs after applying).
+- **Selection and switching** — `theming.active` / `theming.live` are options
+  *inside each nixos/homeManager configuration* (contributed by the
+  extension), never in substrate settings. Flipping `theming.active` re-renders
+  every registered adapter; with `theming.live = true` a shell switcher
+  (`theming switch <name>`, dconf + template symlinks + onSwitch hooks, no
+  rebuild) is installed for runtime changes, applying `theming.active` at
+  session start.
+
+Adding a theme or a themed app touches only that theme's/app's module.
+
+### Import
+
+```nix
+imports = [ inputs.substrate.substrateModules.theming ];
+```
+
+### Usage
+
+Registry pushes (`palettes`, `apps`) happen at the **top level** of a module
+file — the outer substrate evaluation, where there is no `pkgs`. Class
+fragments (`generic`/`nixos`/`homeManager`) run in separate target configs
+(where `theming.active` lives) and must not carry registry data: a palette
+defined in a class fragment exists only in the configs that select it, while
+the switcher and adapters need every registered palette in every config.
+Palette package fields are `pkgs -> package` functions, resolved per target.
+
+```nix
+# modules/theming/catppuccin/default.nix — outer eval:
+{
+  config.substrate.settings.theming.palettes.catppuccin-mocha = {
+    colors = { base00 = "1e1e2e"; /* … base0F, optional base10..base17 */ };
+    dark = true;
+    gtk = { name = "catppuccin-mocha"; package = pkgs: pkgs.catppuccin-gtk; };
+    icon = { name = "Papirus-Dark"; package = pkgs: pkgs.papirus-icon-theme; };
+  };
+
+  # optional tagged leaf so hosts/users can select it like any module:
+  config.substrate.modules.theming.catppuccin.tags = [ "theming:catppuccin" ];
+}
+
+# modules/programs/zellij/default.nix — registers its adapter:
+{
+  config.substrate.settings.theming.apps.zellij = {
+    apply.homeManager = theme: {
+      programs.zellij.themes.hdwlinux = myAdapter theme.colors;
+    };
+    templates = theme: {
+      # farm paths: prefix with the app name so adapters never collide
+      "zellij/hdwlinux.kdl" = {
+        content = builtins.toJSON theme.colors.hexWithHashtag;
+        dest = "$HOME/.config/zellij/themes/hdwlinux.kdl";
+      };
+    };
+  };
+}
+
+# In the user's homeManager config (target eval):
+{
+  theming = {
+    active = "catppuccin-mocha";
+    live = true; # install the runtime switcher
+  };
+}
+```
+
+### Choosing an adapter pattern
+
+| The app's theme reaches it via… | Use | Live-switchable? |
+|---|---|---|
+| home-manager / NixOS options (config baked into a store path) | `apply.<class>` | rebuild only |
+| a file at a known path it re-reads | `templates` + `dest` | yes |
+| a file it re-reads, but needs a kick (signal, restart) | `templates` + `onSwitch` | yes |
+| a file in a dir it manages itself, selected by config it owns | template without `dest` + `onSwitch` consuming `$2` | yes |
+| dconf/GSettings names (gtk/icon/cursor/font) | palette fields — no adapter needed | yes |
+| anything unreachable at runtime (console colors…) | `apply.nixos` | rebuild only |
+
+`apply` fragments receive the resolved palette record and return option
+assignments per class; an adapter may target both classes. `onSwitch` is a
+function from theme to script text (hooks can bake theme colors), rendered
+into each theme farm under `onswitch/<app>` and executed with `$1` = theme
+name, `$2` = that theme's farm path. Pick `apply` or `templates` per app —
+pointing both at the same destination lets live switching and rebuilds fight
+over the file.
+
+```nix
+# app with no-dest template + self-placing hook (e.g. btop):
+config.substrate.settings.theming.apps.btop = {
+  templates = theme: {
+    "btop/hdwlinux.theme" = { content = btopTheme theme.colors; };  # dest = null
+  };
+  onSwitch = theme: "ln -sfn \"$2/btop/hdwlinux.theme\" $HOME/.config/btop/themes/ && btop-reload";
+};
+```
+
+### Module argument
+
+`theme` is added to every host/user configuration:
+
+| Attribute | Description |
+|-----------|-------------|
+| `theme.palettes` | resolved palettes: `palettes.<name>.colors` is a color library (each `baseXX` a color object with `hex`/`hexWithHashtag`/`rgb`/`rgbString`/`ansi`, plus `fromHex`/`mix`/`lighten`/`darken`) |
+| `theme.adapters` | the app adapter registry, for introspection |
+| `theme.mkColorLib` | build a color library from raw hex attrsets directly |
+
+Core hooks used: `extraArgsGenerators` (the `theme` arg), `contributors`
+(one entry per class). Live wallpaper handling is intentionally out of scope
+for v1.
 
 ## Wrappers Extension
 
