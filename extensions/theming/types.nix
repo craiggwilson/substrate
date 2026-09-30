@@ -15,6 +15,7 @@ let
     lines
     nullOr
     package
+    path
     raw
     str
     submodule
@@ -162,6 +163,34 @@ let
         });
         default = null;
         description = "UI font family and size, if any.";
+      };
+
+      qt = lib.mkOption {
+        type = nullOr (themePackageType {
+          platformTheme = lib.mkOption {
+            type = str;
+            default = "qtct";
+            description = "Qt platform theme name (e.g. \"qtct\" or \"kvantum\").";
+          };
+        });
+        default = null;
+        description = ''
+          Qt/Kvantum theme name and provider package, if any. Applied on
+          Home Manager: style and platform theme wiring plus the Kvantum
+          configuration files pointing at the theme.
+        '';
+      };
+
+      plymouth = lib.mkOption {
+        type = nullOr (themePackageType { });
+        default = null;
+        description = "Plymouth boot theme name and provider package, if any (applied on NixOS).";
+      };
+
+      wallpaper = lib.mkOption {
+        type = nullOr path;
+        default = null;
+        description = "Wallpaper store path, if any. Consumed through theming.palette.wallpaper.";
       };
     };
   };

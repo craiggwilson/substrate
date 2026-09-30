@@ -506,11 +506,18 @@ directly (`secretspec get NAME`, `eval "$(secretspec export)"`) because
 ## Theming Extension
 
 Turns per-app theme wiring from a central convention into a plugin model, in
-three parts:
+four parts:
 
 - **Palette definitions** — pure color data (base16-required, base24-extensible),
   pushed into `substrate.settings.theming.palettes.<name>`. Any module can
   reference them.
+- **Generic surfaces** — when a palette is active, the contributed class
+  module applies the surfaces it describes: GTK theme/icon/Adwaita CSS,
+  pointer cursor, Qt/Kvantum, `GTK_THEME` (Home Manager); console palette,
+  Plymouth (NixOS). All applied at `mkDefault` priority so explicit config
+  and adapters win; `theming.palette` exposes the resolved active palette
+  (color library, `wallpaper`, `dark`, package fields) to coupled app
+  fragments.
 - **App adapters** — per-program theme mappings, pushed into
   `substrate.settings.theming.apps.<name>`: `apply` (rebuild-time option
   fragments per class), `templates` (prebuilt files for live switching),
@@ -549,6 +556,10 @@ Palette package fields are `pkgs -> package` functions, resolved per target.
     dark = true;
     gtk = { name = "catppuccin-mocha"; package = pkgs: pkgs.catppuccin-gtk; };
     icon = { name = "Papirus-Dark"; package = pkgs: pkgs.papirus-icon-theme; };
+    cursor = { name = "Nordzy-cursors"; size = 24; package = pkgs: pkgs.nordzy-cursor-theme; };
+    qt = { name = "catppuccin-mocha"; package = pkgs: pkgs.catppuccin-kvantum; platformTheme = "qtct"; };
+    plymouth = { name = "catppuccin-mocha"; package = pkgs: pkgs.catppuccin-plymouth; };
+    wallpaper = ./wallpaper.jpg;
   };
 
   # optional tagged leaf so hosts/users can select it like any module:

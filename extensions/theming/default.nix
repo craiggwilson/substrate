@@ -7,6 +7,10 @@
 #
 # Palettes are pushed by theme modules (typically tagged leaves under
 # `substrate.modules.theming.*`) into `substrate.settings.theming.palettes`.
+# The contributed class module applies a palette's generic surfaces when it
+# is active: GTK theme/icon/Adwaita CSS, pointer cursor, Qt/Kvantum, session
+# GTK_THEME (Home Manager); console palette, Plymouth (NixOS). All are
+# `mkDefault`, so explicit config and adapters override them.
 # Program modules push their theme mapping into
 # `substrate.settings.theming.apps.<name>`: `apply` (rebuild-time option
 # fragments per class), `templates` (prebuilt files for live switching),
@@ -64,11 +68,13 @@ in
       description = ''
         Palette definitions, keyed by name: base16-required/base24-extensible
         colors as bare hex, optional ANSI slot mapping, and optional named
-        gtk/icon/cursor/font packages (package fields are ``pkgs -> package``
-        functions, resolved against each target's package set — this option
-        tree is evaluated in the outer substrate config, where no pkgs is in
-        scope). Pure data — which palette is active is decided per
-        configuration, never here.
+        surfaces (``gtk``/``icon``/``cursor``/``font``/``qt``/``plymouth``
+        packages and a ``wallpaper`` path; package fields are
+        ``pkgs -> package`` functions, resolved against each target's package
+        set — this option tree is evaluated in the outer substrate config,
+        where no pkgs is in scope). When a palette is active, the contributed
+        class module applies its generic surfaces. Pure data — which palette
+        is active is decided per configuration, never here.
       '';
     };
 

@@ -77,6 +77,9 @@ let
     writeShellScript = name: text: fakeDrv "script-${name}" // { inherit name text; };
     writeShellApplication = args: fakeDrv "app-${args.name}";
     linkFarm = name: entries: fakeDrv "farm-${name}" // { inherit name entries; };
+    formats.ini = _: {
+      generate = name: _: fakeDrv "ini-${name}";
+    };
   };
 
   # A resolved theme in the shape registries and adapters see.
@@ -167,12 +170,12 @@ let
   };
 
   # Eval the contributed module for a class against stub options.
-  evalClass =
-    class: modules:
+  evalClassWith =
+    base: class: modules:
     let
-      contributed = baseEval.config.substrate.lib.contributionsFor class {
+      contributed = base.config.substrate.lib.contributionsFor class {
         inputs = { };
-        substrate = baseEval.config.substrate;
+        substrate = base.config.substrate;
         userName = "testuser";
         hostname = "testhost";
         hostcfg = { };
@@ -213,6 +216,30 @@ let
                   type = lib.types.listOf lib.types.raw;
                   default = [ ];
                 };
+                home.pointerCursor = lib.mkOption {
+                  type = lib.types.raw;
+                  default = null;
+                };
+                home.sessionVariables = lib.mkOption {
+                  type = lib.types.attrsOf lib.types.raw;
+                  default = { };
+                };
+                gtk = lib.mkOption {
+                  type = lib.types.attrsOf lib.types.raw;
+                  default = { };
+                };
+                qt = lib.mkOption {
+                  type = lib.types.attrsOf lib.types.raw;
+                  default = { };
+                };
+                xdg.configFile = lib.mkOption {
+                  type = lib.types.attrsOf lib.types.raw;
+                  default = { };
+                };
+                boot.plymouth = lib.mkOption {
+                  type = lib.types.attrsOf lib.types.raw;
+                  default = { };
+                };
                 systemd.user.tmpfiles.rules = lib.mkOption {
                   type = lib.types.listOf lib.types.str;
                   default = [ ];
@@ -227,6 +254,44 @@ let
         ]
         ++ modules;
     };
+
+  evalClass = evalClassWith baseEval;
+
+  # Separate fixture for the palette-driven surfaces: a rich palette with
+  # every package field populated, and no adapters, so surface output is
+  # attributable to the extension alone.
+  richPalette = samplePaletteRaw // {
+    gtk = {
+      name = "rich-standard";
+      package = _pkgs: fakeDrv "/fake/rich-gtk";
+    };
+    icon = {
+      name = "RichIcons";
+      package = _pkgs: fakeDrv "/fake/rich-icon";
+    };
+    cursor = {
+      name = "RichCursors";
+      package = _pkgs: fakeDrv "/fake/rich-cursor";
+      size = 28;
+    };
+    qt = {
+      name = "rich-kv";
+      package = _pkgs: fakeDrv "/fake/rich-kvantum";
+      platformTheme = "qtct";
+    };
+    plymouth = {
+      name = "rich-plymouth";
+      package = _pkgs: fakeDrv "/fake/rich-plymouth";
+    };
+    wallpaper = "/fake/wallpaper.jpg";
+  };
+
+  surfacesEval = themingEval [
+    {
+      config.substrate.settings.theming.palettes.rich = richPalette;
+    }
+  ];
+  evalSurfacesClass = evalClassWith surfacesEval;
 
 in
 runTests "Theming Extension" {
@@ -531,5 +596,91 @@ runTests "Theming Extension" {
             dest = "\$HOME/.config/zellij/themes/hdwlinux.kdl";
           }
         ];
+  };
+
+  # ── palette-driven generic surfaces ──────────────────────────────────────
+
+  surfaces-homeManager-gtk-cursor-qt = {
+    check =
+      let
+        ev = evalSurfacesClass "homeManager" [
+          {
+            config.theming.active = "rich";
+          }
+        ];
+      in
+      ev.config.theming.palette.name == "rich"
+      && ev.config.theming.palette.wallpaper == "/fake/wallpaper.jpg"
+      && ev.config.gtk.enable == true
+      && ev.config.gtk.theme.name == "rich-standard"
+      && ev.config.gtk.iconTheme.name == "RichIcons"
+      && ev.config.gtk.gtk3.extraConfig.gtk-application-prefer-dark-theme == true
+      && lib.strings.hasInfix "@define-color accent_color #f9e2af" ev.config.gtk.gtk3.extraCss
+      && lib.strings.hasInfix "@define-color accent_color #f9e2af" ev.config.gtk.gtk4.extraCss
+      && ev.config.home.sessionVariables.GTK_THEME == "rich-standard"
+      && ev.config.home.pointerCursor.name == "RichCursors"
+      && ev.config.home.pointerCursor.package.outPath == "/fake/rich-cursor"
+      && ev.config.home.pointerCursor.hyprcursor.size == 28
+      && ev.config.qt.platformTheme.name == "qtct"
+      && ev.config.qt.style.name == "kvantum"
+      && ev.config.xdg.configFile."Kvantum/rich-kv".source == "/fake/rich-kvantum/share/Kvantum/rich-kv"
+      && ev.config.xdg.configFile."Kvantum/kvantum.kvconfig".source.outPath == "ini-kvantum.kvconfig";
+  };
+
+  surfaces-nixos-console-plymouth = {
+    check =
+      let
+        ev = evalSurfacesClass "nixos" [
+          {
+            config.theming.active = "rich";
+          }
+        ];
+      in
+      builtins.length ev.config.console.colors == 16
+      &&
+        ev.config.console.colors == [
+          "1e1e2e"
+          "f38ba8"
+          "a6e3a1"
+          "f9e2af"
+          "89b4fa"
+          "f5e0dc"
+          "94e2d5"
+          "cdd6f4"
+          "585b70"
+          "eba0ac"
+          "a6e3a1"
+          "f5e0dc"
+          "89b4fa"
+          "cba6f7"
+          "94e2d5"
+          "b4befe"
+        ]
+      && ev.config.boot.plymouth.theme == "rich-plymouth"
+      && (builtins.head ev.config.boot.plymouth.themePackages).outPath == "/fake/rich-plymouth";
+  };
+
+  surfaces-no-switcher-when-live-false = {
+    check =
+      let
+        ev = evalSurfacesClass "homeManager" [
+          {
+            config.theming.active = "rich";
+          }
+        ];
+      in
+      ev.config.systemd.user.services.theming-boot or null == null;
+  };
+
+  surfaces-absent-when-inactive = {
+    check =
+      let
+        ev = evalSurfacesClass "homeManager" [ ];
+      in
+      ev.config.gtk == { }
+      && ev.config.qt == { }
+      && ev.config.home.pointerCursor == null
+      && ev.config.xdg.configFile == { }
+      && ev.config.theming.palette == null;
   };
 }
