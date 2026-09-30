@@ -192,6 +192,17 @@ let
         default = null;
         description = "Wallpaper store path, if any. Consumed through theming.palette.wallpaper.";
       };
+
+      extra = lib.mkOption {
+        type = attrsOf raw;
+        default = { };
+        description = ''
+          Theme-specific data no typed field anticipates (an app's internal
+          theme-name string, a wallpaper focus point, an accent beyond the
+          base16 roles). Adapters read it as ``theme.extra``; the extension
+          itself never interprets it.
+        '';
+      };
     };
   };
 
@@ -220,13 +231,17 @@ let
         type = attrsOf (functionTo (attrsOf raw));
         default = { };
         example = lib.literalExpression ''
-          homeManager = theme: { programs.zellij.themes.hdwlinux = myAdapter theme.colors; };
+          homeManager = { theme, pkgs, ... }: { programs.zellij.themes.hdwlinux = myAdapter theme.colors; };
         '';
         description = ''
-          Per-class build-time fragments: function theme -> attrset of option
-          assignments, where theme is the resolved palette (colors as color
-          objects). Rebuild-only surfaces live here; the active theme is read
-          from the target configuration, so flipping it re-renders everything.
+          Per-class build-time fragments: function from ``{ theme, pkgs, ... }``
+          to an attrset of option assignments. ``theme`` is the resolved palette
+          (colors as color objects, package fields as ``pkgs -> package``
+          functions to resolve with the given ``pkgs``, plus ``dark``,
+          ``wallpaper`` and ``extra``); future fields may be added to the
+          argument set, so functions should end their patterns with ``...``.
+          Rebuild-only surfaces live here; the active theme is read from the
+          target configuration, so flipping it re-renders everything.
         '';
       };
 
@@ -234,13 +249,13 @@ let
         type = nullOr (functionTo (attrsOf templateEntryType));
         default = null;
         example = lib.literalExpression ''
-          theme: { "waybar/colors.css" = { content = css theme.colors; dest = "\$HOME/.config/waybar/colors.css"; }; }
+          { theme, ... }: { "waybar/colors.css" = { content = css theme.colors; dest = "\$HOME/.config/waybar/colors.css"; }; }
         '';
         description = ''
-          Function theme -> rendered files for live switching, prebuilt per
-          palette into a theme link farm. Template keys are farm paths and
-          may contain directories; prefix them with the app name to avoid
-          collisions between adapters.
+          Function from the same ``{ theme, pkgs, ... }`` argument to rendered
+          files for live switching, prebuilt per palette into a theme link
+          farm. Template keys are farm paths and may contain directories;
+          prefix them with the app name to avoid collisions between adapters.
         '';
       };
 
@@ -248,11 +263,12 @@ let
         type = nullOr (functionTo lines);
         default = null;
         example = lib.literalExpression ''
-          theme: "ln -sfn \\"$2/waybar/colors.css\\" \$HOME/.config/waybar/colors.css"
+          { theme, ... }: "ln -sfn \\"$2/waybar/colors.css\\" \$HOME/.config/waybar/colors.css"
         '';
         description = ''
-          Function theme -> shell script, rendered per palette into the theme
-          farm under ``onswitch/<app>`` and run after each live switch (with
+          Function from the same ``{ theme, pkgs, ... }`` argument to a shell
+          script, rendered per palette into the theme farm under
+          ``onswitch/<app>`` and run after each live switch (with
           $1 = theme name, $2 = farm path) so apps can place files or reload
           themselves where the generic switcher cannot reach. Receives the
           theme record, so hook bodies can bake theme colors; the farm path

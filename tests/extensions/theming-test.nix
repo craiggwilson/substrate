@@ -122,37 +122,37 @@ let
     {
       config.substrate.settings.theming = {
         palettes.foo = samplePaletteRaw;
-        apps.zellij.apply.homeManager = theme: {
+        apps.zellij.apply.homeManager = { theme, ... }: {
           programs.zellij.themes.hdwlinux = theme.colors.base0D.hex;
         };
-        apps.zellij.templates = theme: {
+        apps.zellij.templates = { theme, ... }: {
           "zellij/hdwlinux.kdl" = {
             content = "theme \"${theme.name}\" {\n  bg = \"${theme.colors.base00.hexWithHashtag}\"\n}";
             dest = "\$HOME/.config/zellij/themes/hdwlinux.kdl";
           };
         };
-        apps.opencode.templates = theme: {
+        apps.opencode.templates = { theme, ... }: {
           "opencode.json" = {
             content = builtins.toJSON { theme = theme.colors.hex; };
             dest = null;
           };
         };
         # no-dest template + runtime hook that consumes the farm path ($2):
-        apps.btop.templates = theme: {
+        apps.btop.templates = { theme, ... }: {
           "btop/hdwlinux.theme" = {
             content = "bg: ${theme.colors.base00.hex}";
             dest = null;
           };
         };
         apps.btop.onSwitch =
-          theme:
+          { theme, ... }:
           "ln -sfn \"$2/btop/hdwlinux.theme\" ~/.config/btop/themes/ && btop-reload ${theme.name} ${theme.colors.base00.hex}";
         # adapter targeting both classes:
         apps.tty.apply = {
-          nixos = theme: {
+          nixos = { theme, ... }: {
             console.colors = theme.colors.ansi.black.hex;
           };
-          homeManager = theme: {
+          homeManager = { theme, ... }: {
             programs.foo = theme.name;
           };
         };
@@ -477,20 +477,20 @@ runTests "Theming Extension" {
                 foo = resolvedTheme "foo" samplePaletteRaw;
               };
               apps = {
-                zellij.templates = theme: {
+                zellij.templates = { theme, ... }: {
                   "zellij-theme.kdl" = {
                     content = "theme \"${theme.name}\"";
                     dest = "\$HOME/.config/zellij/themes/hdwlinux.kdl";
                   };
                 };
-                opencode.templates = theme: {
+                opencode.templates = { theme, ... }: {
                   "opencode.json" = {
                     content = theme.colors.base00.hex;
                     dest = null;
                   };
                 };
                 btop.templates = null;
-                btop.onSwitch = _theme: "btop-reload";
+                btop.onSwitch = { ... }: "btop-reload";
               };
             };
         manifest = built.manifest.foo;

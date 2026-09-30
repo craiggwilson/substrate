@@ -569,10 +569,10 @@ Palette package fields are `pkgs -> package` functions, resolved per target.
 # modules/programs/zellij/default.nix — registers its adapter:
 {
   config.substrate.settings.theming.apps.zellij = {
-    apply.homeManager = theme: {
+    apply.homeManager = { theme, pkgs, ... }: {
       programs.zellij.themes.hdwlinux = myAdapter theme.colors;
     };
-    templates = theme: {
+    templates = { theme, ... }: {
       # farm paths: prefix with the app name so adapters never collide
       "zellij/hdwlinux.kdl" = {
         content = builtins.toJSON theme.colors.hexWithHashtag;
@@ -602,9 +602,16 @@ Palette package fields are `pkgs -> package` functions, resolved per target.
 | dconf/GSettings names (gtk/icon/cursor/font) | palette fields — no adapter needed | yes |
 | anything unreachable at runtime (console colors…) | `apply.nixos` | rebuild only |
 
-`apply` fragments receive the resolved palette record and return option
-assignments per class; an adapter may target both classes. `onSwitch` is a
-function from theme to script text (hooks can bake theme colors), rendered
+Adapters receive one argument — `{ theme, pkgs, ... }`, the resolved palette
+record and the target configuration's package set (palette package fields are
+`pkgs -> package` functions; call them with the given `pkgs`). Fragment keys
+must be statically known: return `{ opt = lib.mkIf cond value; }` rather than
+computing keys from `theme`. The extension's own generic surfaces (`gtk`,
+`cursor`, `qt`, `console`, `plymouth`) are built-in adapters applied before
+user adapters — a user adapter registered under one of those names replaces
+it outright. `apply` fragments return option assignments per class; an adapter
+may target both classes. `onSwitch` is a function from the same argument set
+to script text (hooks can bake theme colors), rendered
 into each theme farm under `onswitch/<app>` and executed with `$1` = theme
 name, `$2` = that theme's farm path. Pick `apply` or `templates` per app —
 pointing both at the same destination lets live switching and rebuilds fight

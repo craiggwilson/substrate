@@ -21,15 +21,31 @@ let
       lib.mapAttrsToList (
         appName: app:
         lib.optionals (app.templates != null) (
-          lib.mapAttrsToList (fileName: entry: {
-            name = fileName;
-            path = pkgs.writeText "theming-${name}-${appName}" entry.content;
-          }) (app.templates theme)
+          lib.mapAttrsToList
+            (fileName: entry: {
+              name = fileName;
+              path = pkgs.writeText "theming-${name}-${appName}" entry.content;
+            })
+            (
+              app.templates {
+                inherit
+                  theme
+                  pkgs
+                  ;
+              }
+            )
         )
         ++ lib.optionals (app.onSwitch != null) [
           {
             name = "onswitch/${appName}";
-            path = pkgs.writeShellScript "theming-onswitch-${name}-${appName}" (app.onSwitch theme);
+            path = pkgs.writeShellScript "theming-onswitch-${name}-${appName}" (
+              app.onSwitch {
+                inherit
+                  theme
+                  pkgs
+                  ;
+              }
+            );
           }
         ]
       ) apps
@@ -46,10 +62,19 @@ let
           if app.templates == null then
             [ ]
           else
-            lib.mapAttrsToList (fileName: entry: {
-              src = "${farms.${name}}/${fileName}";
-              dest = entry.dest;
-            }) (app.templates theme)
+            lib.mapAttrsToList
+              (fileName: entry: {
+                src = "${farms.${name}}/${fileName}";
+                dest = entry.dest;
+              })
+              (
+                app.templates {
+                  inherit
+                    theme
+                    pkgs
+                    ;
+                }
+              )
         ) apps
       )
     );
