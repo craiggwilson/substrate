@@ -214,8 +214,14 @@ let
   templateEntryType = submodule {
     options = {
       content = lib.mkOption {
-        type = str;
-        description = "Rendered file content.";
+        type = lib.types.either lib.types.str lib.types.path;
+        example = lib.literalExpression ''
+          pkgs.formats.json { }.generate "colors.json" colors
+        '';
+        description = ''
+          Rendered file content, as a string or a store path (e.g. a
+          `pkgs.formats.*` `generate` result, which has no string renderer).
+        '';
       };
       dest = lib.mkOption {
         type = nullOr str;
@@ -232,6 +238,20 @@ let
 
   appType = submodule {
     options = {
+      enabled = lib.mkOption {
+        type = functionTo bool;
+        default = _: false;
+        example = lib.literalExpression ''
+          { config, ... }: config.programs.zellij.enable
+        '';
+        description = ''
+          Predicate returning whether theming for this app should be active
+          given the evaluation context. Receives the same adapter arguments
+          (``{ theme, pkgs, config, lib, class, ... }``). Defaults to false so
+          apps must opt in.
+        '';
+      };
+
       apply = lib.mkOption {
         type = attrsOf (functionTo (attrsOf raw));
         default = { };

@@ -48,12 +48,37 @@ let
     name: a: !(adapters ? ${name}) && a.apply ? ${class}
   ) builtInSurfaces;
 
-  appAdapters = filterAttrs (_: a: a.apply ? ${class}) adapters;
+  appAdapters = filterAttrs (
+    _: a:
+    a.apply ? ${class}
+    && (
+      if a ? enabled then
+        let
+          predArgs = {
+            inherit
+              theme
+              pkgs
+              lib
+              class
+              ;
+            # pass a minimal config surface to avoid deep recursion while
+            # allowing hasAttr checks used by adapter predicates
+            config = { };
+          };
+        in
+        (a.enabled predArgs)
+      else
+        false
+    )
+  ) adapters;
 
   adapterArgs = {
     inherit
       theme
       pkgs
+      config
+      lib
+      class
       ;
   };
 
@@ -61,7 +86,7 @@ let
     mapAttrsToList (_: a: a.apply.${class} adapterArgs) surfaceAdapters
     ++ mapAttrsToList (_: a: a.apply.${class} adapterArgs) appAdapters;
 
-  live = import ./switcher.nix { inherit lib pkgs; } {
+  runtimeSwitching = import ./switcher.nix { inherit lib pkgs; } {
     inherit themes;
     apps = adapters;
   };
@@ -69,21 +94,40 @@ let
   liveArtifacts = {
     systemd.user.tmpfiles.rules = [
       "d %h/.local/theming 0755 - - - -"
-      "L+ %h/.local/theming/manifest.json - - - - ${live.manifestFile}"
+      "L+ %h/.local/theming/manifest.json - - - - ${runtimeSwitching.manifestFile}"
     ];
 
-    systemd.user.services.theming-boot = {
-      description = "Apply the active substrate theme on session startup";
-      wantedBy = [ "graphical-session.target" ];
-      after = [ "graphical-session-pre.target" ];
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-        ExecStart = "${live.package}/bin/theming switch ${cfg.active}";
-      };
-    };
+    # Home Manager's systemd options are section-shaped (Unit/Service/
+    # Install); nixpkgs' are the older flat keyword shape.
+    systemd.user.services.theming-boot =
+      if class == "nixos" then
+        {
+          description = "Apply the active substrate theme on session startup";
+          wantedBy = [ "graphical-session.target" ];
+          after = [ "graphical-session-pre.target" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ExecStart = "${runtimeSwitching.package}/bin/theming switch ${cfg.active}";
+          };
+        }
+      else
+        {
+          Unit = {
+            Description = "Apply the active substrate theme on session startup";
+            After = [ "graphical-session-pre.target" ];
+          };
+          Service = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ExecStart = "${runtimeSwitching.package}/bin/theming switch ${cfg.active}";
+          };
+          Install = {
+            WantedBy = [ "graphical-session.target" ];
+          };
+        };
   }
-  // setAttrByPath packagePath ([ live.package ] ++ live.themePackages);
+  // setAttrByPath packagePath ([ runtimeSwitching.package ] ++ runtimeSwitching.themePackages);
 in
 {
   options.theming = {
@@ -100,7 +144,7 @@ in
       '';
     };
 
-    live = mkOption {
+    runtimeSwitching = mkOption {
       type = types.bool;
       default = false;
       description = ''
@@ -126,7 +170,7 @@ in
 
   # Top-level mkMerge with sibling branches. A single `mkIf` whose condition
   # reads one `theming` option while the merged definitions also carry values
-  # that read a sibling (`theming.live`) recurses during definition
+  # that read a sibling (`theming.runtimeSwitching`) recurses during definition
   # extraction. Adapter fragments may only be forced at discharge (their keys
   # are computed from `theme`, which reads config), which the `mkIf` wrapper
   # guarantees — the collector treats it as opaque.
@@ -144,6 +188,6 @@ in
       theming.palette = theme;
     })
     (mkIf (cfg.active != null) (mkMerge fragments))
-    (mkIf (cfg.active != null && cfg.live) liveArtifacts)
+    (mkIf (cfg.active != null && cfg.runtimeSwitching) liveArtifacts)
   ];
 }
