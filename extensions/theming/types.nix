@@ -13,6 +13,7 @@ let
     functionTo
     int
     lines
+    listOf
     nullOr
     package
     path
@@ -187,10 +188,14 @@ let
         description = "Plymouth boot theme name and provider package, if any (applied on NixOS).";
       };
 
-      wallpaper = lib.mkOption {
-        type = nullOr path;
-        default = null;
-        description = "Wallpaper store path, if any. Consumed through theming.palette.wallpaper.";
+      wallpapers = lib.mkOption {
+        type = listOf path;
+        default = [ ];
+        description = ''
+          Wallpaper store paths for this theme — several per theme so users
+          (or their daemons) can rotate. Consumed through
+          ``theming.palette.wallpapers``.
+        '';
       };
 
       extra = lib.mkOption {
@@ -238,7 +243,7 @@ let
           to an attrset of option assignments. ``theme`` is the resolved palette
           (colors as color objects, package fields as ``pkgs -> package``
           functions to resolve with the given ``pkgs``, plus ``dark``,
-          ``wallpaper`` and ``extra``); future fields may be added to the
+          ``wallpapers`` and ``extra``); future fields may be added to the
           argument set, so functions should end their patterns with ``...``.
           Rebuild-only surfaces live here; the active theme is read from the
           target configuration, so flipping it re-renders everything.

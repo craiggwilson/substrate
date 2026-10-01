@@ -283,7 +283,10 @@ let
       name = "rich-plymouth";
       package = _pkgs: fakeDrv "/fake/rich-plymouth";
     };
-    wallpaper = "/fake/wallpaper.jpg";
+    wallpapers = [
+      "/fake/wallpaper.jpg"
+      "/fake/alt.jpg"
+    ];
   };
 
   surfacesEval = themingEval [
@@ -610,7 +613,11 @@ runTests "Theming Extension" {
         ];
       in
       ev.config.theming.palette.name == "rich"
-      && ev.config.theming.palette.wallpaper == "/fake/wallpaper.jpg"
+      &&
+        ev.config.theming.palette.wallpapers == [
+          "/fake/wallpaper.jpg"
+          "/fake/alt.jpg"
+        ]
       && ev.config.gtk.enable == true
       && ev.config.gtk.theme.name == "rich-standard"
       && ev.config.gtk.iconTheme.name == "RichIcons"

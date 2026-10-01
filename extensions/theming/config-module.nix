@@ -4,7 +4,7 @@
 # the built-in surface adapters (surfaces.nix) alongside any user-registered
 # app adapters: every fragment is `theme -> option assignments`, called with
 # the target's package set. `theming.palette` exposes the resolved active
-# palette (color library, wallpaper, dark flag, package fields) to coupled app
+# palette (color library, wallpapers, dark flag, package fields) to coupled app
 # fragments that must mix theme data with target config.
 {
   lib,
@@ -116,7 +116,7 @@ in
       default = null;
       description = ''
         The resolved active palette (color library under `.colors`, plus
-        `wallpaper`, `dark`, and the theme package fields), or null when no
+        `wallpapers`, `dark`, and the theme package fields), or null when no
         theme is active. Read it from coupled app fragments that must mix
         theme data with target config; pure color mappings belong in a
         `settings.theming.apps.<name>.apply` adapter instead.
