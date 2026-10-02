@@ -454,7 +454,7 @@ never generates or mints values.
 
 ```nix
 # A nixos-class module declares what it needs and wraps its service:
-{ pkgs, secrets, ... }:
+{ pkgs, wrap, ... }:
 {
   secretspec = {
     providers.team = {
@@ -471,14 +471,23 @@ never generates or mints values.
 
   systemd.services.github-mcp = {
     serviceConfig = {
-      ExecStart = secrets.run {
-        scope = "github-mcp";
-        cmd = "${pkgs.github-mcp}/bin/github-mcp";
-      };
+      ExecStart =
+        lib.getExe (wrap.withSecret {
+          package = pkgs.github-mcp;
+          scope = "github-mcp";
+        });
       # Provider bootstrap credential (see Runtime Model below):
       EnvironmentFile = "/run/secrets/provider-token.env";
     };
   };
+
+  # or, in a Home Manager module:
+  home.packages = [
+    (wrap.withSecret {
+      package = pkgs.github-mcp;
+      scope = "github-mcp";
+    })
+  ];
 }
 ```
 
@@ -486,13 +495,29 @@ Home Manager class modules use the same options; in shells the CLI works
 directly (`secretspec get NAME`, `eval "$(secretspec export)"`) because
 `$SECRETSPEC_FILE` points at the generated manifest.
 
+### wrap.withSecret
+
+When the wrappers extension is also loaded, secrets registers a `secret`
+backend: `wrap.withSecret { package; scope; ... }` builds a standalone script
+that resolves the scope's secrets from the generated manifest at exec time and
+injects them into the wrapped command's environment. It is a first-class wrap
+backend: it accepts the same build context as other backends and composes with
+them (nesting it under `wrap.withBubblewrap`, aliases, `wrap.typed`, ...).
+
+Options:
+
+| Option | Description |
+|--------|-------------|
+| `package` | The derivation to wrap (resolved with `lib.getExe`). |
+| `scope` | Scope resolved at exec time; must be declared in `secretspec.scopes`. |
+| `reason` | Audit-reason string; defaults to `"runtime resolution for scope <scope>"`. |
+| `manifest` | Explicit manifest path; `null` derives it from the build context: the Home Manager user manifest on user builds, `/etc/secretspec.toml` on host builds (the path placed by the NixOS class module). |
+
 ### Runtime Model
 
-- `secrets.run` wraps a command with `secretspec run` scoped to one scope;
-  resolved values are injected into the child's environment at exec time.
-  To layer secrets into a wrapped program, use `secrets.prefix` with the
-  `wrap.withScript` backend's `prefix` option (the only built-in that supports exec
-  chains).
+- `wrap.withSecret` wraps a command with `secretspec run` scoped to one
+  scope; resolved values are injected into the child's environment at exec
+  time.
 - Entries with `asPath = true` are materialized as temporary files at
   resolution, for consumers that insist on a path.
 - Manifest references are store-visible (vault/item/field names, like
@@ -504,13 +529,18 @@ directly (`secretspec get NAME`, `eval "$(secretspec export)"`) because
 
 ## Wrappers Extension
 
+### Overview
+
 Provides `wrap` — a pkgs-bound module argument (the `jailLib` pattern) for
 declaratively wrapping executables: inject environment variables, prepend CLI
-args, and chain exec prefixes. It has no options and no target modules; each
-call returns a derivation you install through your usual mechanism
+args, and chain exec prefixes. Its backend registry is open: extensions
+contribute backends via `substrate.settings.wrappers.backends` (e.g. jail's
+`wrap.withBubblewrap`, secrets' `wrap.withSecret`); each registry entry at key
+`foo` surfaces as `wrap.withFoo`. Each call returns a derivation you install
+through your usual mechanism
 (`home.packages`, `environment.systemPackages`, a systemd unit, ...).
 
-Three callables differ in **placement** (what tree the result exposes) and
+Three built-in callables differ in **placement** (what tree the result exposes) and
 **stub generator** (shell script vs compiled binary):
 
 | Callable | Placement | Stub | Keeps completions/man/siblings? |
@@ -555,7 +585,7 @@ imports = [ inputs.substrate.substrateModules.wrappers ];
 | `runtimeInputs` | ✓ | ✓ | ✓* | Packages added to the wrapper's `PATH` |
 | `preHook` | ✓ | ✗ | ✓* | Shell run before the program starts |
 | `postHook` | ✗ | ✗ | ✓ | Shell run after the program (its exit code propagates) |
-| `prefix` | ✗ | ✗ | ✓ | Raw exec-line fragments placed before the exe (launchers, `secrets.prefix`) |
+| `prefix` | ✗ | ✗ | ✓ | Raw exec-line fragments placed before the exe (launchers) |
 | `name` | ✗ | ✗ | ✓ | Rename the wrapper command |
 | `cmd` | ✗ | ✗ | ✓ | Raw script body, no base package (needs `name`) |
 | `files` | ✓ | ✓ | ✓ | Declarative files materialized into the wrapper (below) |
@@ -594,7 +624,7 @@ literal string (e.g. `"$HOME/.config/foo"`) for runtime resolution.
 ### Usage
 
 ```nix
-{ pkgs, wrap, secrets, ... }:
+{ pkgs, wrap, ... }:
 let
   # in-place default: replace claude-code, keep its completions, add a flag
   claude = wrap {
@@ -608,10 +638,16 @@ let
     env.MAGICK_TMPDIR = "/tmp";
   };
 
-  # standalone: prefix a launcher (uwsm), or run under secrets
-  mcp = wrap.withScript {
+  # secrets resolution at exec time (with the secrets extension loaded)
+  mcp = wrap.withSecret {
     package = pkgs.github-mcp-server;
-    prefix = [ (secrets.prefix { scope = "github-mcp"; }) ];
+    scope = "github-mcp";
+  };
+
+  # arbitrary exec-chain prefix
+  launch = wrap.withScript {
+    package = pkgs.thing;
+    prefix = [ "uwsm app --" ];
   };
 
   # text mode: no base package at all

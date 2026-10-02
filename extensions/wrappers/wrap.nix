@@ -22,6 +22,12 @@
   pkgs,
   backends ? { },
   defaultBackend ? "shell",
+  # The build context the `wrap` argument was generated for (see
+  # extensions/wrappers/default.nix): hostcfg/usercfg flow to backend build
+  # calls so context-sensitive backends can adapt (e.g. the secrets backends's
+  # manifest path). null usercfg = a host build.
+  hostcfg ? null,
+  usercfg ? null,
 }:
 let
   common = import ./common.nix { inherit lib pkgs; };
@@ -82,7 +88,12 @@ let
         }).config
       );
       drv = b.build {
-        inherit pkgs lib;
+        inherit
+          pkgs
+          lib
+          hostcfg
+          usercfg
+          ;
         wrapLib = common;
       } cfg;
       rerun = overrides: buildWith name (spec // overrides);
@@ -108,11 +119,14 @@ let
       specialArgs = { inherit pkgs lib; };
     }).config;
 
-  withName = key: "with" + lib.strings.toUpper (lib.strings.substring 0 1 key) + lib.strings.substring 1 (builtins.stringLength key) key;
+  withName =
+    key:
+    "with"
+    + lib.strings.toUpper (lib.strings.substring 0 1 key)
+    + lib.strings.substring 1 (builtins.stringLength key) key;
 
   contributedCallables = lib.mapAttrs' (
-    n: _:
-    lib.nameValuePair (withName n) (spec: buildWith n spec)
+    n: _: lib.nameValuePair (withName n) (spec: buildWith n spec)
   ) (lib.filterAttrs (n: _: !(builtins.elem n builtinNames)) registry);
 in
 builtins.seq

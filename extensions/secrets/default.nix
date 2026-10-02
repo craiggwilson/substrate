@@ -2,12 +2,16 @@
 #
 # Contributes a class module for each target it supports (nixos, homeManager),
 # routed by class so a manifest is only ever placed where that builder exists.
-# There modules declare secretspec.{entries,providers,scopes,defaultProviders},
+# These modules declare secretspec.{entries,providers,scopes,defaultProviders},
 # which render into a per-configuration secretspec.toml manifest (declarations
-# only; values stay in providers and resolve at runtime). Host modules also
-# receive a pkgs-bound `secrets` helper (like jailLib) for wrapping service
-# commands.
-{ lib, ... }:
+# only; values stay in providers and resolve at runtime).
+#
+# When the wrappers extension is also loaded, it registers a `secret` wrap
+# backend, surfacing as `wrap.withSecret { package; scope; ... }`: a standalone
+# script that populates the command's environment at exec time from the
+# generated manifest. Without wrappers there is no backend; class modules,
+# the installed CLI, and $SECRETSPEC_FILE cover the rest.
+{ lib, options, ... }:
 let
   inherit (import ./manifest.nix { inherit lib; }) paths;
 
@@ -15,67 +19,100 @@ let
 
   homeManagerContribution = _: [ ./home-manager-module.nix ];
 
-  secretsArgs =
-    { hostcfg, pkgs, ... }:
-    let
-      # The fixed host manifest is placed by the NixOS builder, which only
-      # runs for hosts that carry a system (usersOnly = false). Users of
-      # home-only hosts get the shell-expandable XDG form the home-manager
-      # module places.
-      manifestPath =
-        if hostcfg != null && !(hostcfg.usersOnly or false) then
-          paths.nixosManifest
-        else
-          paths.homeManagerUserManifest;
-      prefix =
-        {
-          scope,
-          reason ? "runtime resolution for scope ${scope}",
-        }:
-        "${pkgs.secretspec}/bin/secretspec run --file ${manifestPath} --scope ${scope} --caller substrate --caller-operation run --reason ${lib.escapeShellArg reason} --";
-    in
+  # The manifest a wrapper reads, derived from the wrap backend's build
+  # context (hostcfg/usercfg, threaded through the wrap pipeline): user
+  # builds read the Home Manager manifest at its shell-expandable XDG
+  # location; host builds read the fixed path placed by the NixOS class
+  # module. An explicit `manifest` overrides both.
+  manifestFor =
+    manifest: usercfg:
+    if manifest != null then
+      toString manifest
+    else if usercfg != null then
+      paths.homeManagerUserManifest
+    else
+      paths.nixosManifest;
+
+  secretBackend =
+    { config, ... }:
     {
-      secrets = {
-        inherit
-          manifestPath
-          prefix
-          ;
-        package = pkgs.secretspec;
-        # Wrap a command so its environment is populated at exec time from the
-        # generated manifest, restricted to one scope. The leading "@" keeps
-        # the whole string usable as a systemd ExecStart on hosts; user builds
-        # omit it for shell composition. To inject secrets into a wrapped
-        # program via other machinery (e.g. the wrap extension), use
-        # secrets.prefix and append the command yourself.
-        run =
-          {
-            scope,
-            cmd,
-            reason ? "runtime resolution for scope ${scope}",
-          }:
-          (lib.optionalString (hostcfg != null) "@")
-          + prefix {
-            inherit
-              scope
-              reason
-              ;
-          }
-          + " ${cmd}";
+      options = {
+        scope = lib.mkOption {
+          type = lib.types.str;
+          description = "Scope resolved at exec time; must be declared in the manifest (secretspec.scopes).";
+        };
+
+        reason = lib.mkOption {
+          type = lib.types.str;
+          default = "runtime resolution for scope ${config.scope}";
+          description = "Reason recorded by providers that support audit logging.";
+        };
+
+        manifest = lib.mkOption {
+          type = with lib.types; nullOr str;
+          default = null;
+          description = "Path to the secretspec.toml manifest. null derives it from the build context: the Home Manager user manifest on user builds, /etc/secretspec.toml on host builds.";
+        };
       };
+
+      config.assertions = [
+        {
+          assertion = config.package != null;
+          message = "wrap.withSecret requires { package = ...; scope = ...; }.";
+        }
+      ];
     };
+
+  secretBackendBuild =
+    {
+      pkgs,
+      lib,
+      wrapLib,
+      hostcfg,
+      usercfg,
+    }:
+    cfg:
+    let
+      name = baseNameOf (lib.getExe cfg.package);
+      fileArg = "--file \"${manifestFor cfg.manifest usercfg}\"";
+      prefix = "${pkgs.secretspec}/bin/secretspec run ${fileArg} --scope ${lib.escapeShellArg cfg.scope} --caller substrate --caller-operation run --reason ${lib.escapeShellArg cfg.reason} --";
+    in
+    pkgs.runCommand name
+      {
+        nativeBuildInputs = [ pkgs.makeWrapper ];
+        meta.mainProgram = name;
+      }
+      ''
+        makeWrapper ${lib.getExe cfg.package} "$out/bin/.${name}-core" --inherit-argv0
+        substitute ${pkgs.writeShellScript "${name}-outer" ''
+          exec -a "$0" ${prefix} @out@/bin/.${name}-core "$@"
+        ''} "$out/bin/${name}" --replace-fail "@out@" "$out"
+        chmod +x "$out/bin/${name}"
+      '';
 in
 {
-  config.substrate.settings = {
-    contributors = [
-      {
-        class = "nixos";
-        contribute = nixosContribution;
-      }
-      {
-        class = "homeManager";
-        contribute = homeManagerContribution;
-      }
-    ];
-    extraArgsGenerators = [ secretsArgs ];
-  };
+  config = lib.mkMerge [
+    {
+      substrate.settings.contributors = [
+        {
+          class = "nixos";
+          contribute = nixosContribution;
+        }
+        {
+          class = "homeManager";
+          contribute = homeManagerContribution;
+        }
+      ];
+    }
+
+    # Register the wrap.withSecret backend when the wrappers extension is
+    # loaded (see extensions/wrappers). Without wrappers the option does not
+    # exist and there is nothing to contribute.
+    (lib.optionalAttrs ((options.substrate.settings.wrappers or { }) ? backends) {
+      substrate.settings.wrappers.backends.secret = {
+        options = secretBackend;
+        build = secretBackendBuild;
+      };
+    })
+  ];
 }

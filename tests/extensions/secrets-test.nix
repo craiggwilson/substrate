@@ -13,7 +13,6 @@ let
   manifest = import ../../extensions/secrets/manifest.nix { inherit lib; };
   inherit (manifest)
     render
-    paths
     ;
   inherit (lib.strings) hasInfix;
 
@@ -86,7 +85,7 @@ let
     };
   };
 
-  throws = expr: !(builtins.tryEval expr).success;
+  throws = expr: !(builtins.tryEval (builtins.deepSeq expr expr)).success;
 
   optionsEval = lib.evalModules {
     modules = [
@@ -110,23 +109,55 @@ let
     ];
   };
 
+  mkFakeDrv =
+    attrs:
+    attrs
+    // {
+      outPath = attrs.outPath or "";
+      isDerivation = true;
+      override = f: mkFakeDrv (attrs // f);
+      overrideAttrs = f: mkFakeDrv (attrs // (f attrs attrs));
+    };
+
   fakePkgs = {
     secretspec = "/fake/secretspec";
+    makeWrapper = "/fake/makeWrapper";
+    writeShellScript = name: text: "script:${text}";
+    runCommand =
+      name: args: body:
+      mkFakeDrv (
+        args
+        // {
+          inherit name body;
+        }
+      );
+  };
+
+  fakePkg = mkFakeDrv {
+    type = "derivation";
+    pname = "foo";
+    version = "1.0";
+    outPath = "/nix/store/hash-foo-1.0";
+    meta.mainProgram = "foo";
   };
 
   eval = evalSubstrate [ ../../extensions/secrets/default.nix ];
 
-  moduleArgsFor =
-    hostcfg:
-    eval.config.substrate.lib.extraArgsGenerator {
-      inherit hostcfg;
-      usercfg = null;
+  wrapsEval = evalSubstrate [
+    ../../extensions/wrappers/default.nix
+    ../../extensions/secrets/default.nix
+  ];
+
+  wrapsArgs =
+    usercfg:
+    wrapsEval.config.substrate.lib.extraArgsGenerator {
+      hostcfg = {
+        name = "h";
+      };
+      inherit usercfg;
       inputs = { };
       pkgs = fakePkgs;
     };
-
-  hostArgs = moduleArgsFor { name = "unsouled"; };
-  userArgs = moduleArgsFor null;
 
   contributed = eval.config.substrate.lib.contributionsFor "nixos" { };
   contributedUsers = eval.config.substrate.lib.contributionsFor "homeManager" { };
@@ -266,51 +297,84 @@ runTests "Secrets Extension Tests" {
     check = contributed == [ ../../extensions/secrets/nixos-module.nix ];
   };
 
-  helperAvailableInBothBuilds = {
-    check = hostArgs ? secrets && userArgs ? secrets;
+  # --- wrap backend (registered when the wrappers extension is loaded) ---
+
+  noBackendWithoutWrappers = {
+    check = !(eval.config.substrate.settings ? wrappers);
   };
 
-  userManifestPathUsesXdgFallback = {
-    check = hasInfix ''{XDG_CONFIG_HOME:-$HOME/.config}/secretspec/secretspec.toml'' userArgs.secrets.manifestPath;
+  backendRegistered = {
+    check = (wrapsArgs null).wrap ? withSecret;
   };
 
-  secretsPrefixComposesWithoutSystemdAt = {
+  backendExecLineHostManifest = {
     check =
       let
-        pfx = hostArgs.secrets.prefix { scope = "github"; };
-      in
-      hasInfix "--file /etc/secretspec.toml" pfx
-      && hasInfix "--scope github" pfx
-      && lib.strings.hasSuffix " --" pfx;
-  };
-
-  helperRunString = {
-    check =
-      let
-        run = hostArgs.secrets.run {
+        drv = (wrapsArgs null).wrap.withSecret {
+          package = fakePkg;
           scope = "github";
-          cmd = "/bin/srv serve";
         };
+        body = drv.body;
       in
-      hasInfix "@${fakePkgs.secretspec}/bin/secretspec run" run
-      && hasInfix "--file ${paths.nixosManifest}" run
-      && hasInfix "--scope github" run
-      && hasInfix "--caller substrate" run
-      && hasInfix "-- /bin/srv serve" run;
+      hasInfix ''exec -a "$0" /fake/secretspec/bin/secretspec run'' body
+      && hasInfix ''--file "/etc/secretspec.toml"'' body
+      && hasInfix "--scope github" body
+      && hasInfix "--caller substrate --caller-operation run" body
+      && hasInfix ''-- @out@/bin/.foo-core "$@"'' body
+      && hasInfix ''makeWrapper /nix/store/hash-foo-1.0/bin/foo "$out/bin/.foo-core" --inherit-argv0'' body;
   };
 
-  helperRunCustomReason = {
+  backendManifestFromUserBuild = {
+    check =
+      let
+        drv = (wrapsArgs { name = "u"; }).wrap.withSecret {
+          package = fakePkg;
+          scope = "github";
+        };
+        body = drv.body;
+      in
+      hasInfix ''--file "''${XDG_CONFIG_HOME:-$HOME/.config}/secretspec/secretspec.toml"'' body;
+  };
+
+  backendManifestOverride = {
+    check =
+      let
+        drv = (wrapsArgs null).wrap.withSecret {
+          package = fakePkg;
+          scope = "github";
+          manifest = "/custom/secretspec.toml";
+        };
+        body = drv.body;
+      in
+      hasInfix ''--file "/custom/secretspec.toml"'' body;
+  };
+
+  backendCustomReason = {
     check =
       let
         reason = ''deploy "now"'';
-      in
-      hasInfix ("--reason " + lib.escapeShellArg reason) (
-        hostArgs.secrets.run {
+        drv = (wrapsArgs null).wrap.withSecret {
+          package = fakePkg;
           scope = "github";
-          cmd = "/bin/srv";
           inherit reason;
-        }
-      );
+        };
+        body = drv.body;
+      in
+      hasInfix ("--reason " + lib.escapeShellArg reason) body;
+  };
+
+  backendRejectsMissingPackage = {
+    check = throws ((wrapsArgs null).wrap.withSecret { scope = "github"; });
+  };
+
+  backendRejectsUnknownKeys = {
+    check = throws (
+      (wrapsArgs null).wrap.withSecret {
+        package = fakePkg;
+        scope = "github";
+        env.NOPE = "x";
+      }
+    );
   };
 
   noHomeManagerModulesWithoutHm = {

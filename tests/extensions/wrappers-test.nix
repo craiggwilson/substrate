@@ -153,8 +153,7 @@ runTests "Wrappers Extension Tests" {
         env.A = "b c";
         runtimeInputs = [ jqFake ];
         cmd = "echo hi \"$\"";
-      }
-      == joinLines [
+      } == joinLines [
         "echo p"
         "export A='b c'"
         ''PATH="/nix/store/hash-jq-1.7/bin:$PATH"''
@@ -171,11 +170,11 @@ runTests "Wrappers Extension Tests" {
   };
 
   toOuterSimple = {
-    check = toOuter {
-      binName = "foo";
-      prefix = [ "uwsm app --" ];
-    }
-    == "exec -a \"$0\" uwsm app -- @out@/bin/.foo-core \"$@\"";
+    check =
+      toOuter {
+        binName = "foo";
+        prefix = [ "uwsm app --" ];
+      } == "exec -a \"$0\" uwsm app -- @out@/bin/.foo-core \"$@\"";
   };
 
   toOuterPostHookPropagatesExit = {
@@ -378,8 +377,7 @@ runTests "Wrappers Extension Tests" {
           postHook = "echo done";
         };
       in
-      hasInfix ''"$out/bin/.foo-core" '' drv.body
-      && hasInfix "exit $code" drv.body;
+      hasInfix ''"$out/bin/.foo-core" '' drv.body && hasInfix "exit $code" drv.body;
   };
 
   scriptTextMode = {
@@ -437,7 +435,8 @@ runTests "Wrappers Extension Tests" {
           ];
         };
       in
-      hasInfix "--set MPV_CONFIG text:mpv.conf" drv.body && hasInfix ''ln -s text:mpv.conf "$out/mpv.conf"'' drv.body;
+      hasInfix "--set MPV_CONFIG text:mpv.conf" drv.body
+      && hasInfix ''ln -s text:mpv.conf "$out/mpv.conf"'' drv.body;
   };
 
   # --- wrap.typed ---
@@ -447,7 +446,9 @@ runTests "Wrappers Extension Tests" {
       let
         drv = mpvTyped { profile = "hq"; };
       in
-      drv.name == "foo" && hasInfix "--set PROFILE hq" drv.body && hasInfix ''ln -s text:p.conf "$out/p.conf"'' drv.body;
+      drv.name == "foo"
+      && hasInfix "--set PROFILE hq" drv.body
+      && hasInfix ''ln -s text:p.conf "$out/p.conf"'' drv.body;
   };
 
   typedDefaultsApply = {
@@ -654,19 +655,17 @@ runTests "Wrappers Extension Tests" {
       && (builtins.tryEval (realWrap { })).success == false;
   };
 
-  # Integration: secrets prefixes compose into standalone wrapper exec lines.
-  secretsPrefixComposesIntoScriptWrapper = {
+  # Integration: the secrets extension's backend is a first-class wrap backend.
+  secretsBackendComposesIntoLayeredWrapper = {
     check =
       let
-        drv = hostArgs.wrap.withScript {
+        drv = hostArgs.wrap.withSecret {
           package = fakePkg;
-          prefix = [
-            (hostArgs.secrets.prefix { scope = "github-mcp"; })
-          ];
+          scope = "github-mcp";
         };
       in
-      hasInfix ''makeWrapper ${exe} "$out/bin/.foo-core"'' drv.body
-      && hasInfix "exec -a \"$0\" /fake/secretspec/bin/secretspec run --file /etc/secretspec.toml --scope github-mcp" drv.body
+      hasInfix ''makeWrapper ${exe} "$out/bin/.foo-core" --inherit-argv0'' drv.body
+      && hasInfix "exec -a \"$0\" /fake/secretspec/bin/secretspec run --file \"/etc/secretspec.toml\" --scope github-mcp" drv.body
       && hasInfix ''-- @out@/bin/.foo-core "$@"'' drv.body;
   };
 }

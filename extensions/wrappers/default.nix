@@ -25,9 +25,10 @@ in
           mkOption, full module body with options/config/imports, or module
           function). The pipeline merges the common package/passthru/assertions
           prelude automatically; wrong spec fields are module errors at eval.
-        - build: build { pkgs, lib, wrapLib } cfg -> derivation. cfg is the
-          validated spec. Backends that wrap a package must honor
-          config.package.
+        - build: build { pkgs, lib, wrapLib, hostcfg, usercfg } cfg -> derivation. cfg is
+          the validated spec; hostcfg/usercfg are the build's configuration
+          context (null usercfg = a host (NixOS-class) build). Backends that
+          wrap a package must honor config.package.
         Reserved names (shell, binary, script, typed, types, toScript,
         toOuter, toStubFlags) are rejected. Entries must not merge across
         modules; a duplicate name is an error.
@@ -50,10 +51,20 @@ in
 
   config.substrate.settings.extraArgsGenerators = [
     (
-      { pkgs, ... }:
+      {
+        hostcfg,
+        usercfg,
+        pkgs,
+        ...
+      }:
       {
         wrap = import ./wrap.nix {
-          inherit lib pkgs;
+          inherit
+            lib
+            pkgs
+            hostcfg
+            usercfg
+            ;
           backends = settings.wrappers.backends;
           defaultBackend = settings.wrappers.defaultBackend;
         };
