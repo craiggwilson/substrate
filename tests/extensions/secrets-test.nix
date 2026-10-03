@@ -272,6 +272,72 @@ runTests "Secrets Extension Tests" {
     check = hasInfix "[scopes.github]\nsecrets = [ \"GITHUB_TOKEN\" ]" sampleRender;
   };
 
+  renderComposedEntry = {
+    check =
+      let
+        out = render {
+          project = "p";
+          entries = {
+            GITHUB_API_TOKEN = {
+              ref = {
+                vault = "Craig";
+                item = "Github";
+                field = "api_token";
+              };
+            };
+            TOKENS = {
+              composed = ''access-tokens = github.com=''${GITHUB_API_TOKEN}'';
+              file = { };
+            };
+          };
+        };
+      in
+      hasInfix ''GITHUB_API_TOKEN = { ref = { field = "api_token", item = "Github", vault = "Craig" } }'' out
+      && hasInfix ''TOKENS = { composed = "access-tokens = github.com=''${GITHUB_API_TOKEN}" }'' out;
+  };
+
+  renderRejectsComposedWithRef = {
+    check = throws (render {
+      project = "p";
+      entries.BAD = {
+        composed = "x";
+        ref = {
+          item = "y";
+        };
+      };
+    });
+  };
+
+  renderRejectsComposedWithProviders = {
+    check = throws (render {
+      project = "p";
+      entries.BAD = {
+        composed = "x";
+        providers = [ "p" ];
+      };
+    });
+  };
+
+  renderRejectsComposedWithDefault = {
+    check = throws (render {
+      project = "p";
+      entries.BAD = {
+        composed = "x";
+        default = "y";
+      };
+    });
+  };
+
+  renderRejectsComposedWithAsPath = {
+    check = throws (render {
+      project = "p";
+      entries.BAD = {
+        composed = "x";
+        asPath = true;
+      };
+    });
+  };
+
   renderOmitsEmptySections = {
     check =
       !(hasInfix "[providers]" minimalRender)

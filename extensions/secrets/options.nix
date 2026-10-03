@@ -47,6 +47,19 @@
                 description = "Prompt for the value at resolution time when missing.";
               };
 
+              composed = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+
+                description = ''
+                  A template string whose `''${UPPERCASE_NAME}` placeholders
+                  are substituted with the values of other declared entries at
+                  resolution time; everything else is literal. Mutually
+                  exclusive with ref, providers, default, and asPath. Combine
+                  with file materialization to render template-like files.
+                '';
+              };
+
               asPath = lib.mkOption {
                 type = lib.types.bool;
                 default = false;
