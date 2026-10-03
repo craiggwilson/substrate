@@ -286,7 +286,7 @@ runTests "Secrets Extension Tests" {
               };
             };
             TOKENS = {
-              composed = ''access-tokens = github.com=''${GITHUB_API_TOKEN}'';
+              composed = "access-tokens = github.com=\${GITHUB_API_TOKEN}";
               file = { };
             };
           };
@@ -328,14 +328,18 @@ runTests "Secrets Extension Tests" {
     });
   };
 
-  renderRejectsComposedWithAsPath = {
-    check = throws (render {
-      project = "p";
-      entries.BAD = {
-        composed = "x";
-        asPath = true;
-      };
-    });
+  renderComposedWithAsPath = {
+    check =
+      let
+        out = render {
+          project = "p";
+          entries.TPL = {
+            composed = ''''${X}'';
+            asPath = true;
+          };
+        };
+      in
+      hasInfix ''TPL = { as_path = true, composed = "''${X}" }'' out;
   };
 
   renderOmitsEmptySections = {
@@ -598,7 +602,7 @@ runTests "Secrets Extension Tests" {
         exec = unit.Service.ExecStart;
       in
       unit.Service.Type == "oneshot"
-      && unit.wantedBy == [ "default.target" ]
+      && unit.Install.WantedBy == [ "default.target" ]
       && hmEval.config.systemd.user.startServices == "sdSwitch"
       && hasInfix "secretspec get GITHUB_TOKEN" exec
       && hasInfix ''--file "${

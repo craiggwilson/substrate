@@ -134,8 +134,6 @@ let
         throw "substrate(secrets): composed entry '${name}' cannot set providers; add them to the referenced entries."
       else if composed != null && (e.default or null) != null then
         throw "substrate(secrets): composed entry '${name}' cannot set default."
-      else if composed != null && (e.asPath or false) then
-        throw "substrate(secrets): composed entry '${name}' cannot set asPath."
       else
         null
     ) null entries;
