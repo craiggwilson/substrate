@@ -124,6 +124,54 @@ in
     homeManagerUserManifest = "$" + "{XDG_CONFIG_HOME:-$HOME/.config}/${homeManagerRel}";
   };
 
+  # An entry resolves to either a value (fetched by the wrapper, exposed to
+  # as_path temp files by the CLI) or a materialized runtime file (file
+  # policy); as_path changes what `secretspec get` returns, so the two
+  # materialization modes conflict. Returns null or throws.
+  checkConflict =
+    entries:
+    lib.foldlAttrs (
+      acc: name: e:
+      if acc != null then
+        acc
+      else if (e.file or null) != null && e.asPath then
+        throw "substrate(secrets): entry '${name}' cannot set both asPath and file materialization; keep one."
+      else
+        null
+    ) null entries;
+
+  # Shared materialization body for both class modules: fetch each
+  # materialized entry's value into a temp file, then install it into place
+  # with owner/group/mode. Values only ever live in runtime files; the store
+  # only sees the manifest's declarations. manifestPath is interpolated into
+  # the `--file` argument verbatim, so callers pass quotes around
+  # shell-expandable paths.
+  materializerText =
+    {
+      secretspec,
+      coreutils,
+      manifestPath,
+    }:
+    entries:
+    lib.concatStringsSep "\n" (
+      lib.mapAttrsToList (
+        name: e:
+        let
+          f = e.file;
+        in
+        ''
+          echo "Materializing secret ${name} to ${f.path}" >&2
+          valueFile="$(mktemp)"
+          ${secretspec}/bin/secretspec get ${name} --file ${manifestPath} > "$valueFile"
+          ${coreutils}/bin/install -D \
+            -m ${lib.escapeShellArg f.mode} \
+            -o ${lib.escapeShellArg f.fileOwner} \
+            -g ${lib.escapeShellArg f.fileGroup} \
+            "$valueFile" ${lib.escapeShellArg f.path}
+        ''
+      ) (lib.filterAttrs (_: e: e.file != null) entries)
+    );
+
   render =
     {
       project,

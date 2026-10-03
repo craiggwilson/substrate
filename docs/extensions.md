@@ -437,7 +437,7 @@ and Home Manager) and merged per configuration like any other option:
 
 | Option | Description |
 |--------|-------------|
-| `secretspec.entries.<name>` | Secret declaration (description, required, default, prompt, asPath, providers, ref) |
+| `secretspec.entries.<name>` | Secret declaration (description, required, default, prompt, asPath, providers, ref) and optional `file` materialization policy (path, fileOwner, fileGroup, mode) |
 | `secretspec.providers.<alias>` | Provider URI and optional provider credentials |
 | `secretspec.scopes.<name>.secrets` | Allowlist of entries a service may receive |
 | `secretspec.defaultProviders` | Fallback chain for entries without their own providers |
@@ -512,6 +512,32 @@ Options:
 | `scope` | Scope resolved at exec time; must be declared in `secretspec.scopes`. |
 | `reason` | Audit-reason string; defaults to `"runtime resolution for scope <scope>"`. |
 | `manifest` | Explicit manifest path; `null` derives it from the build context: the Home Manager user manifest on user builds, `/etc/secretspec.toml` on host builds (the path placed by the NixOS class module). |
+
+### Runtime files (entries.<name>.file)
+
+For consumers that must read a *file path* (module options taking
+`EnvironmentFile`-style paths, scripts doing `$(cat …)`), an entry can carry
+a materialization policy; `null` means env/CLI consumption only:
+
+```nix
+secretspec.entries.githubApiToken.file = { };  # defaults below
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `path` | `/var/lib/secretspec/files/<name>` (NixOS) / `~/.local/state/secretspec/files/<name>` (HM) | Runtime file target; never a Nix store path |
+| `fileOwner` | `root:root` (NixOS) / `<user>:users` (HM) | Ownership of the materialized file |
+| `mode` | `0600` | Permissions, octal |
+
+The resolution is still runtime: a NixOS oneshot service
+(`systemd.services.secretspec-materialize`, ordered after network) fetches
+each materialized entry (as `secretspec get <NAME>` against the host manifest,
+via a login shell-enabled user session in HM through `home.activation.writeSecretspecFiles`)
+and writes the file atomically. Ordering with consumers is explicit
+(`after = [ "secretspec-materialize.service" ]`). `asPath` and `file` are
+mutually exclusive — `asPath` trades persistent files for exec-time temp paths.
+Values never appear in the Nix store; the materialized file only exists at
+runtime.
 
 ### Runtime Model
 

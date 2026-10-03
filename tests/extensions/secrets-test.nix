@@ -86,6 +86,9 @@ let
   };
 
   throws = expr: !(builtins.tryEval (builtins.deepSeq expr expr)).success;
+  # raw option values keep any mkIf wrapper; tests read the content of
+  # true conditions
+  unwrap = v: if v ? _type && v._type == "if" && v.condition then unwrap v.content else v;
 
   optionsEval = lib.evalModules {
     modules = [
@@ -122,7 +125,16 @@ let
   fakePkgs = {
     secretspec = "/fake/secretspec";
     makeWrapper = "/fake/makeWrapper";
+    coreutils = "/fake/coreutils";
     writeShellScript = name: text: "script:${text}";
+    writeText = name: text: "text:${name}:${text}";
+    writeShellApplication =
+      { name, text, ... }:
+      # outPath embeds the script text so ExecStart interpolations are inspectable.
+      mkFakeDrv {
+        inherit name text;
+        outPath = "drv:" + text;
+      };
     runCommand =
       name: args: body:
       mkFakeDrv (
@@ -139,6 +151,68 @@ let
     version = "1.0";
     outPath = "/nix/store/hash-foo-1.0";
     meta.mainProgram = "foo";
+  };
+
+  # --- direct class-module evals (NixOS + fake HM context) ---
+
+  nixEval = lib.evalModules {
+    modules = [
+      ../../extensions/secrets/nixos-module.nix
+      {
+        options.networking.hostName = lib.mkOption {
+          type = lib.types.str;
+          default = "hosts";
+        };
+        options.environment.etc = lib.mkOption { type = lib.types.raw; };
+        options.environment.systemPackages = lib.mkOption { type = lib.types.raw; };
+        options.systemd.services = lib.mkOption { type = lib.types.raw; };
+        config.secretspec = {
+          entries.FOO = {
+            ref.item = "x";
+            file = { };
+          };
+          entries.BAR.ref.item = "y";
+        };
+      }
+    ];
+    specialArgs = {
+      pkgs = fakePkgs;
+    };
+  };
+
+  hmEval = lib.evalModules {
+    modules = [
+      ../../extensions/secrets/home-manager-module.nix
+      {
+        options.home.username = lib.mkOption {
+          type = lib.types.str;
+          default = "craig";
+        };
+        options.home.homeDirectory = lib.mkOption {
+          type = lib.types.str;
+          default = "/home/craig";
+        };
+        options.home.packages = lib.mkOption { type = lib.types.raw; };
+        options.home.sessionVariables = lib.mkOption { type = lib.types.raw; };
+        options.systemd.user.services = lib.mkOption { type = lib.types.raw; };
+        options.systemd.user.startServices = lib.mkOption {
+          type = lib.types.raw;
+          default = "no";
+        };
+        options.xdg.configHome = lib.mkOption {
+          type = lib.types.str;
+          default = "/home/craig/.config";
+        };
+        options.xdg.configFile = lib.mkOption { type = lib.types.raw; };
+        config.secretspec.entries.GITHUB_TOKEN = {
+          ref.item = "x";
+          file = { };
+        };
+      }
+    ];
+    specialArgs = {
+      pkgs = fakePkgs;
+    };
   };
 
   eval = evalSubstrate [ ../../extensions/secrets/default.nix ];
@@ -374,6 +448,126 @@ runTests "Secrets Extension Tests" {
         scope = "github";
         env.NOPE = "x";
       }
+    );
+  };
+
+  # --- entries.<name>.file materialization ---
+
+  fileDefaultPathUnderVarLib = {
+    check = nixEval.config.secretspec.entries.FOO.file.path == "/var/lib/secretspec/files/FOO";
+  };
+
+  fileDefaultOwnership = {
+    check =
+      let
+        f = nixEval.config.secretspec.entries.FOO.file;
+      in
+      f.fileOwner == "root" && f.fileGroup == "root" && f.mode == "0600";
+  };
+
+  fileDefaultsToNullForEnvEntries = {
+    check = nixEval.config.secretspec.entries.BAR.file == null;
+  };
+
+  hmFileDefaultUnderStateHome = {
+    check =
+      let
+        f = hmEval.config.secretspec.entries.GITHUB_TOKEN.file;
+      in
+      f.path == "/home/craig/.local/state/secretspec/files/GITHUB_TOKEN"
+      && f.fileOwner == "craig"
+      && f.fileGroup == "users"
+      && f.mode == "0600";
+  };
+
+  nixosMaterializerServiceGenerated = {
+    check =
+      let
+        service = unwrap nixEval.config.systemd.services.secretspec-materialize;
+      in
+      service.serviceConfig.Type == "oneshot"
+      && hasInfix "secretspec-materialize-files" service.serviceConfig.ExecStart
+      && service.serviceConfig.Environment == [ "SECRETSPEC_FILE=/etc/secretspec.toml" ];
+  };
+
+  materializerFetchesAndInstalls = {
+    check =
+      let
+        text = (unwrap nixEval.config.systemd.services.secretspec-materialize).serviceConfig.ExecStart;
+      in
+      hasInfix "secretspec get FOO --file /etc/secretspec.toml" text
+      && hasInfix "install -D" text
+      && hasInfix "-m 0600" text;
+  };
+
+  noMaterializerWithoutFileEntries = {
+    check =
+      let
+        eval = lib.evalModules {
+          modules = [
+            ../../extensions/secrets/nixos-module.nix
+            {
+              options.networking.hostName = lib.mkOption { type = lib.types.str; };
+              options.environment.etc = lib.mkOption { type = lib.types.raw; };
+              options.environment.systemPackages = lib.mkOption { type = lib.types.raw; };
+              options.systemd.services = lib.mkOption { type = lib.types.raw; };
+              config.secretspec.entries.BAR.ref.item = "y";
+            }
+          ];
+          specialArgs = {
+            pkgs = fakePkgs;
+          };
+        };
+      in
+      let
+        svc = (unwrap eval.config.systemd.services).secretspec-materialize or null;
+      in
+      svc == null || (svc._type or "" == "if" && !svc.condition);
+  };
+
+  hmMaterializerUserUnitGenerated = {
+    check =
+      let
+        unit = unwrap hmEval.config.systemd.user.services.secretspec-materialize;
+        exec = unit.Service.ExecStart;
+      in
+      unit.Service.Type == "oneshot"
+      && unit.wantedBy == [ "default.target" ]
+      && hmEval.config.systemd.user.startServices == "sdSwitch"
+      && hasInfix "secretspec get GITHUB_TOKEN" exec
+      && hasInfix ''--file "${
+        lib.concatStringsSep "" [
+          "$"
+          "{XDG_CONFIG_HOME:-\$HOME/.config}/secretspec/secretspec.toml"
+        ]
+      }"'' exec
+      && hasInfix "install -D" exec;
+  };
+
+  asPathWithFileThrows = {
+    check = throws (
+      builtins.deepSeq nixEval.config
+        (lib.evalModules {
+          modules = [
+            ../../extensions/secrets/nixos-module.nix
+            {
+              options.networking.hostName = lib.mkOption {
+                type = lib.types.str;
+                default = "h";
+              };
+              options.environment.etc = lib.mkOption { type = lib.types.raw; };
+              options.environment.systemPackages = lib.mkOption { type = lib.types.raw; };
+              options.systemd.services = lib.mkOption { type = lib.types.raw; };
+              config.secretspec.entries.FOO = {
+                asPath = true;
+                file = { };
+              };
+            }
+          ];
+          specialArgs = {
+            pkgs = fakePkgs;
+          };
+        }).config
     );
   };
 
