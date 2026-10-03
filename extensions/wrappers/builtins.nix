@@ -71,7 +71,16 @@ let
     options.args = lib.mkOption {
       type = with lib.types; listOf raw;
       default = [ ];
-      description = ''CLI arguments inserted before "$@" (shell-escaped verbatim).'';
+      example = [
+        "--config"
+        "$CONFIG_PATH"
+      ];
+      description = ''
+        CLI arguments inserted before "$@". Entries are joined with spaces and
+        interpolated verbatim into the wrapper's exec line, so shell constructs
+        such as "$VAR" expand at exec time. Pass an already-escaped string
+        (`lib.escapeShellArgs [...]`) when a literal value is required.
+      '';
     };
 
     options.runtimeInputs = lib.mkOption {
@@ -111,7 +120,11 @@ let
         )
         ++ lib.optionals (cfg.args or [ ] != [ ]) [
           "--add-flags"
-          (lib.escapeShellArgs cfg.args)
+          # Joined, not per-element escaped: makeWrapper interpolates
+          # --add-flags verbatim into the bash-interpreted invocation, so
+          # pre-escaping here would make "$VAR" a literal string. Callers that
+          # want literal values pre-escape with lib.escapeShellArgs themselves.
+          (lib.concatStringsSep " " cfg.args)
         ]
         ++ lib.optionals (cfg.runtimeInputs or [ ] != [ ]) [
           "--prefix"

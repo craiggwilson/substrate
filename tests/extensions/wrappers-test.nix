@@ -217,11 +217,38 @@ runTests "Wrappers Extension Tests" {
       in
       hasInfix ''wrapProgram "$out/bin/foo"'' drv.postBuild
       && hasInfix "--set FOO 'bar baz'" drv.postBuild
-      && hasInfix ("--add-flags " + lib.escapeShellArg (lib.escapeShellArgs [ "--flag=a" ])) drv.postBuild
+      && hasInfix ("--add-flags " + lib.escapeShellArg (lib.concatStringsSep " " [ "--flag=a" ])) drv.postBuild
       && hasInfix "--prefix PATH : /nix/store/hash-jq-1.7/bin" drv.postBuild
       && hasInfix "--run 'echo hi'" drv.postBuild
       && drv.nativeBuildInputs == [ fakePkgs.makeWrapper ]
       && drv.paths == [ fakePkg ];
+  };
+
+  # args are interpolated verbatim by makeWrapper's exec line, so "$VAR" stays
+  # expandable at exec time. Callers pre-escape with lib.escapeShellArgs to opt
+  # out and get a literal value.
+  shellArgsExpandAtExecTime = {
+    check =
+      let
+        drv = wrap.withShell {
+          package = fakePkg;
+          args = [
+            "--config"
+            "\$EVERGREEN_CONFIG"
+          ];
+        };
+        literal = wrap.withShell {
+          package = fakePkg;
+          args = [ (lib.escapeShellArgs [ "--config" "\$EVERGREEN_CONFIG" ]) ];
+        };
+        expandedFlags = toStubFlags { args = [ "--config" "\$EVERGREEN_CONFIG" ]; };
+        literalFlags = toStubFlags { args = [ (lib.escapeShellArgs [ "--config" "\$EVERGREEN_CONFIG" ]) ]; };
+      in
+      # One escaping pass (the build shell's) leaves the value expandable;
+      # a caller-escaped value is single-quoted in the exec line, opting out.
+      expandedFlags == "--add-flags ${lib.escapeShellArg "--config \$EVERGREEN_CONFIG"}"
+      && hasInfix literalFlags literal.postBuild
+      && hasInfix expandedFlags drv.postBuild;
   };
 
   shellMetaAndName = {
