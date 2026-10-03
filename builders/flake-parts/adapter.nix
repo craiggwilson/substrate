@@ -33,6 +33,7 @@ in
       pkgs = import nixpkgsInput {
         inherit system;
         overlays = allOverlays;
+        config = config.substrate.settings.nixpkgsConfig;
       };
       builderArgs = {
         inherit pkgs system inputs;
