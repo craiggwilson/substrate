@@ -15,6 +15,44 @@
   group ? "root",
   ...
 }:
+let
+  # SecretSpec's native address: a store item plus optional sub-components
+  # (config.rs NativeAddress). Shared by entry refs and provider-credential
+  # addresses so both dialects read the same.
+  refType = lib.types.submodule {
+    options = {
+      field = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Field label within the item.";
+      };
+
+      item = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Item name or id holding the secret; required wherever a ref is given.";
+      };
+
+      section = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Section within the item (requires field).";
+      };
+
+      vault = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Override the provider URI's default store for this secret.";
+      };
+
+      version = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Version-pinned read, for stores that support it; defaults to latest.";
+      };
+    };
+  };
+in
 {
   options.secretspec = {
     entries = lib.mkOption {
@@ -25,8 +63,7 @@
             options = {
               description = lib.mkOption {
                 type = lib.types.str;
-                default = "";
-                description = "Human-readable purpose of the secret, shown by secretspec tooling.";
+                description = "Human-readable purpose of the secret, shown by secretspec tooling. Required: secretspec rejects a manifest whose secrets lack one.";
               };
 
               required = lib.mkOption {
@@ -121,32 +158,7 @@
               };
 
               ref = lib.mkOption {
-                type = lib.types.nullOr (
-                  lib.types.submodule {
-                    options = {
-                      vault = lib.mkOption {
-                        type = lib.types.nullOr lib.types.str;
-                        default = null;
-                        description = "Override the provider URI's default store for this secret.";
-                      };
-                      item = lib.mkOption {
-                        type = lib.types.str;
-                        default = "";
-                        description = "Item name or id holding the secret.";
-                      };
-                      field = lib.mkOption {
-                        type = lib.types.nullOr lib.types.str;
-                        default = null;
-                        description = "Field label within the item.";
-                      };
-                      section = lib.mkOption {
-                        type = lib.types.nullOr lib.types.str;
-                        default = null;
-                        description = "Section within the item (requires field).";
-                      };
-                    };
-                  }
-                );
+                type = lib.types.nullOr refType;
                 default = null;
                 example = {
                   vault = "Infra";
@@ -179,12 +191,39 @@
               description = "Provider URI (e.g., onepassword://vault, keyring://, sops://file).";
             };
             credentials = lib.mkOption {
-              type = lib.types.attrsOf lib.types.str;
+              type = lib.types.attrsOf (
+                lib.types.either lib.types.str (
+                  lib.types.submodule {
+                    options = {
+                      provider = lib.mkOption {
+                        type = lib.types.str;
+                        description = "Provider spec (name, alias, or URI) the credential is read from.";
+                      };
+
+                      ref = lib.mkOption {
+                        type = lib.types.nullOr refType;
+                        default = null;
+                        description = ''
+                          Explicit coordinates in that provider; null reads the
+                          credential at the source's convention address
+                          ({project}/_provider/{credential name}).
+                        '';
+                      };
+                    };
+                  }
+                )
+              );
               default = { };
               example = {
-                service_account_token = "env";
+                service_account_token = "keyring";
               };
-              description = "Provider credentials and the source each is read from.";
+              description = ''
+                Provider credentials, each naming the provider that supplies it.
+                A bare string is a provider spec read at that provider's
+                convention address; the table form pins an explicit address, so
+                the credential can live at a path of its own or in an item field
+                of another secret store.
+              '';
             };
           };
         }

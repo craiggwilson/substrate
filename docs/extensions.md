@@ -437,29 +437,48 @@ and Home Manager) and merged per configuration like any other option:
 
 | Option | Description |
 |--------|-------------|
-| `secretspec.entries.<name>` | Secret declaration (description, required, default, prompt, asPath, providers, ref) and optional `file` materialization policy (path, fileOwner, fileGroup, mode) |
+| `secretspec.entries.<name>` | Secret declaration (description, required, default, prompt, asPath, composed, providers, ref) and optional `file` materialization policy (path, fileOwner, fileGroup, mode) |
 | `secretspec.providers.<alias>` | Provider URI and optional provider credentials |
 | `secretspec.scopes.<name>.secrets` | Allowlist of entries a service may receive |
 | `secretspec.defaultProviders` | Fallback chain for entries without their own providers |
 
+`description` is required on every entry: SecretSpec rejects the whole manifest
+when a secret has none, so the renderer fails at eval instead.
+
 The generated manifest is placed at `/etc/secretspec.toml` on NixOS and
 `~/.config/secretspec/secretspec.toml` under Home Manager (exported there as
-`$SECRETSPEC_FILE`). `secretspec` is installed automatically; external CLIs a
-provider shells out to (op, sops, age, ...) are added by the consuming
-module or config as usual, keeping the extension provider-agnostic.
+`$SECRETSPEC_FILE`). `secretspec` is installed automatically. External CLIs a
+provider shells out to (`op`, `sops`, `age`, ...) are named once in
+`substrate.settings.secrets.providerPackages` (substrate-side, see below),
+keeping the extension provider-agnostic.
 Every declared secret must already exist in its provider — the extension
 never generates or mints values.
+
+One substrate-side option backs the runtime contexts this extension builds
+itself:
+
+| Option | Description |
+|--------|-------------|
+| `substrate.settings.secrets.providerPackages` | Function of the configuration's package set returning the CLIs providers shell out to (`op`, `sops`, `age`, ...). Applied to each NixOS/Home Manager configuration's own `pkgs`, so the packages come from the nixpkgs instance that configuration is built with (the one honoring `nixpkgsConfig`) rather than from substrate's outer evaluation. The result is added to the PATH of the materialization units and every `wrap.withSecret` stub, and nothing else — session PATHs are yours (add the packages to `home.packages` / `environment.systemPackages` for that). |
 
 ### Usage
 
 ```nix
-# A nixos-class module declares what it needs and wraps its service:
-{ pkgs, wrap, ... }:
+# substrate-side, once per flake; a function of the target's pkgs, so this
+# module needs no pkgs in scope:
+{
+  substrate.settings.secrets.providerPackages = pkgs: [ pkgs._1password-cli ];
+}
+
+# a nixos-class module declares what it needs and wraps its service:
+{ pkgs, lib, wrap, ... }:
 {
   secretspec = {
     providers.team = {
       uri = "onepassword://Prod";
-      credentials.service_account_token = "env";
+      # How the 1Password service account token reaches secretspec; see
+      # "Service account tokens" below.
+      credentials.service_account_token = "systemd-credential://";
     };
     entries.GITHUB_TOKEN = {
       description = "GitHub API token";
@@ -470,15 +489,15 @@ never generates or mints values.
   };
 
   systemd.services.github-mcp = {
-    serviceConfig = {
-      ExecStart =
-        lib.getExe (wrap.withSecret {
-          package = pkgs.github-mcp;
-          scope = "github-mcp";
-        });
-      # Provider bootstrap credential (see Runtime Model below):
-      EnvironmentFile = "/run/secrets/provider-token.env";
-    };
+    # systemd hands the unit its own copy of the token, readable only by this
+    # service, from a root-only file on disk.
+    serviceConfig.LoadCredential = [ "service_account_token:/etc/secrets/service_account_token" ];
+    serviceConfig.ExecStart = lib.getExe (
+      wrap.withSecret {
+        package = pkgs.github-mcp;
+        scope = "github-mcp";
+      }
+    );
   };
 
   # or, in a Home Manager module:
@@ -494,6 +513,73 @@ never generates or mints values.
 Home Manager class modules use the same options; in shells the CLI works
 directly (`secretspec get NAME`, `eval "$(secretspec export)"`) because
 `$SECRETSPEC_FILE` points at the generated manifest.
+
+### Service account tokens
+
+A provider that authenticates with a token (1Password service accounts, Vault,
+Bitwarden Secrets Manager, cloud secret managers, ...) declares a credential
+per semantic name. SecretSpec reads the token at resolution time and passes it
+to the provider's own CLI or API in memory — it is never exported into the
+resolved process's environment, and never into the manifest.
+
+Two forms, both in `secretspec.providers.<alias>.credentials`:
+
+```nix
+# a bare provider spec: read at that provider's convention address,
+# {project}/_provider/{credential name}
+credentials.service_account_token = "keyring";
+
+# a table: pin an explicit address in the source provider
+credentials.service_account_token = {
+  provider = "file:/etc/secrets";
+  ref.item = "service_account_token";
+};
+```
+
+`ref` takes the same coordinates as an entry's `ref` (`vault`, `item`, `field`,
+`section`, `version`), so the token can equally live in an item field of another
+store — e.g. `{ provider = "onepassword"; ref.item = "op-sa"; field = "token"; }`
+for a desktop session that unlocks through the 1Password app.
+
+Sources, and how each is provisioned:
+
+| Context | `service_account_token` | Provisioning |
+|---------|-------------------------|--------------|
+| systemd unit | `"systemd-credential://"` | `serviceConfig.LoadCredential = [ "service_account_token:/etc/secrets/service_account_token" ]`, set on **every** unit that resolves (including `secretspec-materialize`). systemd copies the file into a service-private directory at start and exports `$CREDENTIALS_DIRECTORY`; the credential's `ID` is the filename, which is why it must be spelled `service_account_token`. `LoadCredentialEncrypted=` takes a `systemd-creds` blob instead (TPM2- or key-sealed), which is the one form safe to keep in a repo. |
+| interactive shell / desktop | `"keyring"` | `secretspec config provider login <alias>` stores it in the OS keyring at `{project}/_provider/service_account_token`. |
+| wrappers, cron, one-off commands, containers | `{ provider = "file:…"; ref.item = "…"; }` | A token file you place yourself. Works for any process, with no systemd and no unlocked keyring. |
+| CI, containers, ad-hoc shells | *nothing declared* | `op` reads `OP_SERVICE_ACCOUNT_TOKEN` from the environment. |
+| desktop app integration | *nothing declared* | `op` unlocks through the 1Password app (`programs._1password` on NixOS, `programs._1password-gui` under Home Manager) — no token at all. |
+
+Notes that save an hour:
+
+- **`onepassword+token://` is not needed.** The scheme is accepted but inert;
+  since 0.19 a token in the URI is rejected outright (`onepassword+token://token@vault`),
+  because URIs end up in committed manifests, shell history and CI logs. Keep
+  `uri = "onepassword://Vault"` and declare the credential.
+- **A bare-string `file:` source nests.** Its convention address is
+  `<root>/<project>/_provider/<credential name>`, and substrate sets `project` to
+  the hostname (NixOS) or the username (Home Manager). Use the table form when
+  you want a fixed path.
+- **Bytes are verbatim.** No trimming, so no trailing newline in a token file
+  (`printf %s "$TOKEN" > …`, not `echo`).
+- **Two files for two privilege levels.** Root and user scopes need different
+  permissions, so declare the source per class: `/etc/secrets/…` (0400 root) for
+  NixOS, `~/.config/secretspec/…` (0600 you) for Home Manager. It is the same
+  1Password service account either way, so this is a local boundary only —
+  issue a separate token per user if you want 1Password-side scoping.
+- **Keeping host paths out of the flake.** A credential source may name an alias
+  that exists only in `~/.config/secretspec/config.toml` (project aliases win,
+  then user-global ones), so the committed manifest can say
+  `credentials.service_account_token = "opToken"` and each machine resolves
+  `opToken` locally.
+- **Your own units need `op` too.** `substrate.settings.secrets.providerPackages`
+  covers the units and stubs substrate builds; for a unit of your own use
+  `systemd.services.<name>.path = [ pkgs._1password-cli ]`, and for a desktop
+  session add it to `home.packages`.
+- **`providerPackages` takes pkgs as an argument.** Substrate's own evaluation
+  has a different package set from each NixOS/Home Manager configuration, so the
+  option is `pkgs: [ pkgs.op-cli ]`, applied to the configuration's own `pkgs`.
 
 ### wrap.withSecret
 
@@ -529,11 +615,13 @@ secretspec.entries.githubApiToken.file = { };  # defaults below
 | `fileOwner` | `root:root` (NixOS) / `<user>:users` (HM) | Ownership of the materialized file |
 | `mode` | `0600` | Permissions, octal |
 
-The resolution is still runtime: a NixOS oneshot service
-(`systemd.services.secretspec-materialize`, ordered after network) fetches
-each materialized entry (as `secretspec get <NAME>` against the host manifest,
-via a login shell-enabled user session in HM through `home.activation.writeSecretspecFiles`)
-and writes the file atomically. Ordering with consumers is explicit
+The resolution is still runtime: a oneshot service fetches each materialized
+entry (as `secretspec get <NAME>` against that class's manifest) and installs it
+atomically with the entry's owner and mode —
+`systemd.services.secretspec-materialize` on NixOS (ordered after network),
+`systemd.user.services.secretspec-materialize` under Home Manager. Its PATH is
+`substrate.settings.secrets.providerPackages pkgs` plus the CLI itself, so
+provider CLIs resolve there too. Ordering with consumers is explicit
 (`after = [ "secretspec-materialize.service" ]`). `asPath` and `file` are
 mutually exclusive — `asPath` trades persistent files for exec-time temp paths.
 Values never appear in the Nix store; the materialized file only exists at
@@ -548,9 +636,10 @@ runtime.
   resolution, for consumers that insist on a path.
 - Manifest references are store-visible (vault/item/field names, like
   sops-nix filenames); values are not.
-- Provider credentials are the bootstrap problem the extension deliberately
-  does not solve: feed them via `EnvironmentFile`, the OS keyring, or
-  `secretspec config provider login`.
+- Provider credentials are the bootstrap secret: the extension renders *where*
+  each one is read from (see "Service account tokens") but never holds the value
+  itself. Provision it out of band — a file you place, a systemd credential, the
+  OS keyring, or the environment.
 - Scopes minimize secret delivery; they are not an authorization boundary.
 
 ## Wrappers Extension

@@ -3,12 +3,16 @@
 # user's XDG config. No secret values are written; shells and user services
 # resolve at runtime via $SECRETSPEC_FILE. Entries with a `file` policy are
 # additionally materialized to runtime files by a systemd user oneshot.
+#
+# Import parameters: lib, plus providerPackages — a function of this
+# configuration's pkgs returning the CLIs providers shell out to — both bound by
+# the extension's contribution from
+# substrate.settings.secrets.providerPackages.
 {
   lib,
-  config,
-  pkgs,
-  ...
+  providerPackages ? _pkgs: [ ],
 }:
+{ config, pkgs, ... }:
 let
   inherit (import ./manifest.nix { inherit lib; })
     checkConflict
@@ -31,13 +35,15 @@ let
   });
 
   # Same oneshot as the NixOS class, but in the user manager: runtime only,
-  # restartable, ordered-after by consumers.
+  # restartable, ordered-after by consumers. providerPackages joins the PATH so
+  # providers can shell out to their CLIs (op, sops, ...).
   materializeFiles = pkgs.writeShellApplication {
     name = "secretspec-materialize-files";
     runtimeInputs = [
       pkgs.secretspec
       pkgs.coreutils
-    ];
+    ]
+    ++ providerPackages pkgs;
     # The user manager has no network-online target; consumers order after
     # this unit so resolution precedes their reads.
     text = materializerText {

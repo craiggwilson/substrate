@@ -3,12 +3,18 @@
 # path. No secret values are written; services resolve at runtime. Entries
 # with a `file` policy are additionally materialized to runtime files by the
 # secretspec-materialize service.
+#
+# Import parameters: lib, plus providerPackages — a function of this
+# configuration's pkgs returning the CLIs providers shell out to — both bound by
+# the extension's contribution from
+# substrate.settings.secrets.providerPackages. Pre-applying them here rather
+# than as module-system args matches how options.nix's per-class defaults are
+# bound, and keeps the module evaluable on its own.
 {
   lib,
-  config,
-  pkgs,
-  ...
+  providerPackages ? _pkgs: [ ],
 }:
+{ config, pkgs, ... }:
 let
   inherit (import ./manifest.nix { inherit lib; })
     checkConflict
@@ -31,13 +37,15 @@ let
   });
 
   # Resolve and install each materialized entry as a oneshot. Runtime only:
-  # the store just holds the manifest's declarations.
+  # the store just holds the manifest's declarations. providerPackages joins the
+  # PATH so providers can shell out to their CLIs (op, sops, ...).
   materializeFiles = pkgs.writeShellApplication {
     name = "secretspec-materialize-files";
     runtimeInputs = [
       pkgs.secretspec
       pkgs.coreutils
-    ];
+    ]
+    ++ providerPackages pkgs;
     text = materializerText {
       secretspec = "${pkgs.secretspec}";
       coreutils = "${pkgs.coreutils}";

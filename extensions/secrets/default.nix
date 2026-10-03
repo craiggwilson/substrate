@@ -11,13 +11,33 @@
 # script that populates the command's environment at exec time from the
 # generated manifest. Without wrappers there is no backend; class modules,
 # the installed CLI, and $SECRETSPEC_FILE cover the rest.
-{ lib, options, ... }:
+#
+# substrate.settings.secrets.providerPackages names the CLIs providers shell
+# out to (op, sops, ...); they reach the PATH of the two runtime contexts this
+# extension builds itself — the materialization units and the wrap stubs.
+{
+  lib,
+  options,
+  config,
+  ...
+}:
 let
   inherit (import ./manifest.nix { inherit lib; }) paths;
 
-  nixosContribution = _: [ ./nixos-module.nix ];
+  # A function of the configuration's own package set, so the packages come
+  # from the pkgs each NixOS/Home Manager configuration is built with (which
+  # honor per-host nixpkgsConfig) rather than from this outer evaluation.
+  providerPackages = pkgs: config.substrate.settings.secrets.providerPackages pkgs;
 
-  homeManagerContribution = _: [ ./home-manager-module.nix ];
+  # The class modules take it as an import parameter, so each contribution
+  # closes over the function and lets the class module apply it to its own pkgs.
+  # An extraArgsGenerator would publish it to every module in the configuration;
+  # this keeps it between the extension and its own class modules.
+  nixosContribution = _: [ (import ./nixos-module.nix { inherit lib providerPackages; }) ];
+
+  homeManagerContribution = _: [
+    (import ./home-manager-module.nix { inherit lib providerPackages; })
+  ];
 
   # The manifest a wrapper reads, derived from the wrap backend's build
   # context (hostcfg/usercfg, threaded through the wrap pipeline): user
@@ -85,12 +105,31 @@ let
       ''
         makeWrapper ${lib.getExe cfg.package} "$out/bin/.${name}-core" --inherit-argv0
         substitute ${pkgs.writeShellScript "${name}-outer" ''
+          ${lib.optionalString (providerPackages pkgs != [ ]) ''
+            PATH="${lib.makeBinPath (providerPackages pkgs)}:$PATH"
+          ''}
           exec -a "$0" ${prefix} @out@/bin/.${name}-core "$@"
         ''} "$out/bin/${name}" --replace-fail "@out@" "$out"
         chmod +x "$out/bin/${name}"
       '';
 in
 {
+  options.substrate.settings.secrets = {
+    providerPackages = lib.mkOption {
+      type = lib.types.functionTo (lib.types.listOf lib.types.package);
+      default = _pkgs: [ ];
+      description = ''
+        Function of the configuration's package set returning the CLIs
+        providers shell out to (op, sops, age, bw, ...). Taking pkgs as an
+        argument keeps these packages in the same nixpkgs instance each
+        configuration is built with. They are put on the PATH of the runtime
+        contexts this extension builds itself — the materialization units and
+        every wrap.withSecret stub — and nothing else: session PATHs stay yours
+        (add the packages to home.packages or environment.systemPackages).
+      '';
+    };
+  };
+
   config = lib.mkMerge [
     {
       substrate.settings.contributors = [

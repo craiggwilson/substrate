@@ -52,33 +52,66 @@ let
   # Drop null fields; secretspec treats absent as "not set".
   cleanAttrs = lib.filterAttrs (_: v: v != null);
 
+  # SecretSpec's native address with absent coordinates dropped: secretspec
+  # treats a missing coordinate as "not set", and renderValue would stringify a
+  # null as "".
+  refAttrs =
+    r:
+    cleanAttrs {
+      field = r.field or null;
+      item = r.item or "";
+      section = r.section or null;
+      vault = r.vault or null;
+      version = r.version or null;
+    };
+
   refDecl =
     name: r:
     if (r.item or "") == "" then
       throw "substrate(secrets): entry '${name}' has a ref without an item (ref = { item = \"...\"; field = \"...\"; })."
     else
+      refAttrs r;
+
+  # A provider credential is either a bare provider spec, read at that
+  # provider's convention address ({project}/_provider/<credential name>), or
+  # a table pinning an explicit address — a flat token file, or an item field
+  # in another secret store.
+  credentialDecl =
+    alias: c:
+    if lib.isString c then
+      c
+    else
       cleanAttrs {
-        vault = r.vault or null;
-        item = r.item;
-        field = r.field or null;
-        section = r.section or null;
+        provider = c.provider or null;
+        ref =
+          if (c.ref or null) == null then
+            null
+          else if (c.ref.item or "") == "" then
+            throw "substrate(secrets): provider '${alias}' has a credential address without an item (credentials.<name> = { provider = \"...\"; ref = { item = \"...\"; }; })."
+          else
+            refAttrs c.ref;
       };
 
   # Field defaults live in the option module; reads here are total so raw
   # attrsets (validation probes, partial declarations) never crash the
-  # renderer.
+  # renderer. secretspec rejects the whole manifest when a secret has no
+  # description (Secret::validate_description), so require one here rather than
+  # let it surface as a load-time failure against a generated file.
   entryDecl =
     name: e:
-    cleanAttrs {
-      description = if (e.description or "") == "" then null else e.description;
-      required = if e.required or true then null else false;
-      default = e.default or null;
-      prompt = if e.prompt or false then true else null;
-      as_path = if e.asPath or false then true else null;
-      composed = e.composed or null;
-      providers = if (e.providers or [ ]) == [ ] then null else e.providers;
-      ref = if e.ref or null == null then null else refDecl name e.ref;
-    };
+    if (e.description or "") == "" then
+      throw "substrate(secrets): entry '${name}' has no description; secretspec requires a non-empty description for every secret."
+    else
+      cleanAttrs {
+        description = e.description or "";
+        required = if e.required or true then null else false;
+        default = e.default or null;
+        prompt = if e.prompt or false then true else null;
+        as_path = if e.asPath or false then true else null;
+        composed = e.composed or null;
+        providers = if (e.providers or [ ]) == [ ] then null else e.providers;
+        ref = if e.ref or null == null then null else refDecl name e.ref;
+      };
 
   providerDecl =
     alias: p:
@@ -89,7 +122,7 @@ let
     else
       {
         uri = p.uri;
-        credentials = p.credentials;
+        credentials = lib.mapAttrs (_: credentialDecl alias) (p.credentials or { });
       };
 
   validateScopes =
@@ -237,6 +270,7 @@ in
     in
     ''
       [project]
+      revision = "1.0"
       name = "${escapeString project}"
     ''
     + section "[providers]" providerLines

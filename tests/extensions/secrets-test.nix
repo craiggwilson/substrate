@@ -46,7 +46,7 @@ let
       SESSION_PASSWORD = {
         prompt = true;
         required = false;
-        description = "";
+        description = "Password typed in when missing";
         default = null;
         asPath = false;
         providers = [ ];
@@ -57,7 +57,7 @@ let
       team = {
         uri = "onepassword://Prod";
         credentials = {
-          service_account_token = "env";
+          service_account_token = "keyring";
         };
       };
       local = {
@@ -96,14 +96,20 @@ let
       {
         config.secretspec = {
           entries.GITHUB_TOKEN.description = "from module one";
-          entries.API_KEY.required = false;
+          entries.API_KEY = {
+            description = "API key";
+            required = false;
+          };
           providers.team.uri = "onepassword://Prod";
         };
       }
       {
         config.secretspec = {
-          entries.CA_BUNDLE.asPath = true;
-          providers.team.credentials.service_account_token = "env";
+          entries.CA_BUNDLE = {
+            description = "TLS CA bundle";
+            asPath = true;
+          };
+          providers.team.credentials.service_account_token = "keyring";
           providers.local.uri = "keyring://";
           scopes.api.secrets = [ "GITHUB_TOKEN" ];
           defaultProviders = [ "team" ];
@@ -122,18 +128,35 @@ let
       overrideAttrs = f: mkFakeDrv (attrs // (f attrs attrs));
     };
 
+  # Reachable only through the target pkgs, so a test can prove the provider
+  # packages are taken from the configuration's own package set.
+  fakeOpPkg = mkFakeDrv {
+    pname = "1password-cli";
+    version = "2.32.0";
+    outPath = "/nix/store/hash-op-2.32.0";
+    meta.mainProgram = "op";
+  };
+
   fakePkgs = {
+    _1password-cli = fakeOpPkg;
     secretspec = "/fake/secretspec";
     makeWrapper = "/fake/makeWrapper";
     coreutils = "/fake/coreutils";
     writeShellScript = name: text: "script:${text}";
     writeText = name: text: "text:${name}:${text}";
     writeShellApplication =
-      { name, text, ... }:
-      # outPath embeds the script text so ExecStart interpolations are inspectable.
+      {
+        name,
+        text,
+        runtimeInputs ? [ ],
+        ...
+      }:
+      # outPath embeds the script text so ExecStart interpolations are
+      # inspectable, and each runtimeInputs path so a test can see what the
+      # script puts on its PATH.
       mkFakeDrv {
-        inherit name text;
-        outPath = "drv:" + text;
+        inherit name text runtimeInputs;
+        outPath = "drv:" + text + lib.concatMapStringsSep "" (p: ":${toString p}/bin") runtimeInputs;
       };
     runCommand =
       name: args: body:
@@ -155,25 +178,62 @@ let
 
   # --- direct class-module evals (NixOS + fake HM context) ---
 
+  # Option stubs and declarations for a NixOS-class eval, shared by the direct
+  # class-module tests and the contributed-module tests so both drive the same
+  # configuration.
+  nixosStubs = {
+    options.networking.hostName = lib.mkOption {
+      type = lib.types.str;
+      default = "hosts";
+    };
+    options.environment.etc = lib.mkOption { type = lib.types.raw; };
+    options.environment.systemPackages = lib.mkOption { type = lib.types.raw; };
+    options.systemd.services = lib.mkOption { type = lib.types.raw; };
+    config.secretspec = {
+      entries.FOO = {
+        description = "foo";
+        ref.item = "x";
+        file = { };
+      };
+      entries.BAR = {
+        description = "bar";
+        ref.item = "y";
+      };
+    };
+  };
+
+  hmStubs = {
+    options.home.username = lib.mkOption {
+      type = lib.types.str;
+      default = "craig";
+    };
+    options.home.homeDirectory = lib.mkOption {
+      type = lib.types.str;
+      default = "/home/craig";
+    };
+    options.home.packages = lib.mkOption { type = lib.types.raw; };
+    options.home.sessionVariables = lib.mkOption { type = lib.types.raw; };
+    options.systemd.user.services = lib.mkOption { type = lib.types.raw; };
+    options.systemd.user.startServices = lib.mkOption {
+      type = lib.types.raw;
+      default = "no";
+    };
+    options.xdg.configHome = lib.mkOption {
+      type = lib.types.str;
+      default = "/home/craig/.config";
+    };
+    options.xdg.configFile = lib.mkOption { type = lib.types.raw; };
+    config.secretspec.entries.GITHUB_TOKEN = {
+      description = "GitHub token";
+      ref.item = "x";
+      file = { };
+    };
+  };
+
   nixEval = lib.evalModules {
     modules = [
-      ../../extensions/secrets/nixos-module.nix
-      {
-        options.networking.hostName = lib.mkOption {
-          type = lib.types.str;
-          default = "hosts";
-        };
-        options.environment.etc = lib.mkOption { type = lib.types.raw; };
-        options.environment.systemPackages = lib.mkOption { type = lib.types.raw; };
-        options.systemd.services = lib.mkOption { type = lib.types.raw; };
-        config.secretspec = {
-          entries.FOO = {
-            ref.item = "x";
-            file = { };
-          };
-          entries.BAR.ref.item = "y";
-        };
-      }
+      (import ../../extensions/secrets/nixos-module.nix { inherit lib; })
+      nixosStubs
     ];
     specialArgs = {
       pkgs = fakePkgs;
@@ -182,33 +242,8 @@ let
 
   hmEval = lib.evalModules {
     modules = [
-      ../../extensions/secrets/home-manager-module.nix
-      {
-        options.home.username = lib.mkOption {
-          type = lib.types.str;
-          default = "craig";
-        };
-        options.home.homeDirectory = lib.mkOption {
-          type = lib.types.str;
-          default = "/home/craig";
-        };
-        options.home.packages = lib.mkOption { type = lib.types.raw; };
-        options.home.sessionVariables = lib.mkOption { type = lib.types.raw; };
-        options.systemd.user.services = lib.mkOption { type = lib.types.raw; };
-        options.systemd.user.startServices = lib.mkOption {
-          type = lib.types.raw;
-          default = "no";
-        };
-        options.xdg.configHome = lib.mkOption {
-          type = lib.types.str;
-          default = "/home/craig/.config";
-        };
-        options.xdg.configFile = lib.mkOption { type = lib.types.raw; };
-        config.secretspec.entries.GITHUB_TOKEN = {
-          ref.item = "x";
-          file = { };
-        };
-      }
+      (import ../../extensions/secrets/home-manager-module.nix { inherit lib; })
+      hmStubs
     ];
     specialArgs = {
       pkgs = fakePkgs;
@@ -222,9 +257,19 @@ let
     ../../extensions/secrets/default.nix
   ];
 
-  wrapsArgs =
-    usercfg:
-    wrapsEval.config.substrate.lib.extraArgsGenerator {
+  # Same extensions, but with the CLIs providers shell out to declared as a
+  # function of the configuration's pkgs, reachable only through them.
+  packagesWrapsEval = evalSubstrate [
+    ../../extensions/wrappers/default.nix
+    ../../extensions/secrets/default.nix
+    {
+      substrate.settings.secrets.providerPackages = pkgs: [ pkgs._1password-cli ];
+    }
+  ];
+
+  wrapsArgsFor =
+    eval': usercfg:
+    eval'.config.substrate.lib.extraArgsGenerator {
       hostcfg = {
         name = "h";
       };
@@ -233,17 +278,61 @@ let
       pkgs = fakePkgs;
     };
 
+  wrapsArgs = wrapsArgsFor wrapsEval;
+
+  packagesWrapsArgs = wrapsArgsFor packagesWrapsEval;
+
   contributed = eval.config.substrate.lib.contributionsFor "nixos" { };
   contributedUsers = eval.config.substrate.lib.contributionsFor "homeManager" { };
+
+  # The contributed modules as the builder loads them, so the injection of
+  # providerPackages is exercised through the real contribution path.
+  contributedNixosEval = lib.evalModules {
+    modules = contributed ++ [ nixosStubs ];
+    specialArgs = {
+      pkgs = fakePkgs;
+    };
+  };
+
+  contributedHmEval = lib.evalModules {
+    modules = contributedUsers ++ [ hmStubs ];
+    specialArgs = {
+      pkgs = fakePkgs;
+    };
+  };
+
+  # Same, with the provider CLIs declared.
+  packagesEval = evalSubstrate [
+    ../../extensions/secrets/default.nix
+    {
+      substrate.settings.secrets.providerPackages = pkgs: [ pkgs._1password-cli ];
+    }
+  ];
+
+  packagesNixosEval = lib.evalModules {
+    modules = packagesEval.config.substrate.lib.contributionsFor "nixos" { } ++ [ nixosStubs ];
+    specialArgs = {
+      pkgs = fakePkgs;
+    };
+  };
+
+  packagesHmEval = lib.evalModules {
+    modules = packagesEval.config.substrate.lib.contributionsFor "homeManager" { } ++ [ hmStubs ];
+    specialArgs = {
+      pkgs = fakePkgs;
+    };
+  };
 in
 runTests "Secrets Extension Tests" {
   # --- manifest rendering (pure) ---
 
+  # [project] needs a revision for secretspec to load the manifest at all; the
+  # order of the two keys is not significant.
   renderProjectHeader = {
-    check = lib.strings.hasPrefix ''
-      [project]
-      name = "unsouled"
-    '' sampleRender;
+    check =
+      lib.strings.hasPrefix "[project]\n" sampleRender
+      && hasInfix ''name = "unsouled"'' sampleRender
+      && hasInfix ''revision = "1.0"'' sampleRender;
   };
 
   renderInlineSecretTable = {
@@ -259,13 +348,74 @@ runTests "Secrets Extension Tests" {
   };
 
   renderRequiredFalsePreserved = {
-    check = hasInfix "SESSION_PASSWORD = { prompt = true, required = false }" sampleRender;
+    check = hasInfix ''SESSION_PASSWORD = { description = "Password typed in when missing", prompt = true, required = false }'' sampleRender;
   };
 
   renderProviderStringVsTable = {
     check =
       hasInfix ''local = "keyring://"'' sampleRender
-      && hasInfix ''team = { credentials = { service_account_token = "env" }, uri = "onepassword://Prod" }'' sampleRender;
+      && hasInfix ''team = { credentials = { service_account_token = "keyring" }, uri = "onepassword://Prod" }'' sampleRender;
+  };
+
+  # A credential may also pin an explicit address in the source provider, so
+  # the value can live at a path of its own instead of the convention address.
+  renderCredentialAddress = {
+    check =
+      let
+        out = render {
+          project = "unsouled";
+          providers.team = {
+            uri = "onepassword://Prod";
+            credentials.service_account_token = {
+              provider = "file:/etc/secrets";
+              ref.item = "service_account_token";
+            };
+          };
+          entries.FOO.description = "foo";
+        };
+      in
+      hasInfix ''team = { credentials = { service_account_token = { provider = "file:/etc/secrets", ref = { item = "service_account_token" } } }, uri = "onepassword://Prod" }'' out;
+  };
+
+  # Unset coordinates are dropped, never rendered as empty strings.
+  renderCredentialDropsUnsetCoords = {
+    check =
+      let
+        out = render {
+          project = "unsouled";
+          providers.team = {
+            uri = "onepassword://Prod";
+            credentials.service_account_token = {
+              provider = "keyring://";
+              ref = {
+                item = "op";
+                field = "token";
+              };
+            };
+          };
+          entries.FOO.description = "foo";
+        };
+      in
+      hasInfix ''credentials = { service_account_token = { provider = "keyring://", ref = { field = "token", item = "op" } } }'' out
+      && !(hasInfix ''vault = ""'' out)
+      && !(hasInfix ''section = ""'' out);
+  };
+
+  renderEntryRefWithVersion = {
+    check =
+      let
+        out = render {
+          project = "p";
+          entries.FOO = {
+            description = "foo";
+            ref = {
+              item = "Postgres";
+              version = "3";
+            };
+          };
+        };
+      in
+      hasInfix ''FOO = { description = "foo", ref = { item = "Postgres", version = "3" } }'' out;
   };
 
   renderScopes = {
@@ -279,6 +429,7 @@ runTests "Secrets Extension Tests" {
           project = "p";
           entries = {
             GITHUB_API_TOKEN = {
+              description = "GitHub API token";
               ref = {
                 vault = "Craig";
                 item = "Github";
@@ -286,20 +437,22 @@ runTests "Secrets Extension Tests" {
               };
             };
             TOKENS = {
+              description = "Git credentials";
               composed = "access-tokens = github.com=\${GITHUB_API_TOKEN}";
               file = { };
             };
           };
         };
       in
-      hasInfix ''GITHUB_API_TOKEN = { ref = { field = "api_token", item = "Github", vault = "Craig" } }'' out
-      && hasInfix ''TOKENS = { composed = "access-tokens = github.com=''${GITHUB_API_TOKEN}" }'' out;
+      hasInfix ''GITHUB_API_TOKEN = { description = "GitHub API token", ref = { field = "api_token", item = "Github", vault = "Craig" } }'' out
+      && hasInfix ''TOKENS = { composed = "access-tokens = github.com=''${GITHUB_API_TOKEN}", description = "Git credentials" }'' out;
   };
 
   renderRejectsComposedWithRef = {
     check = throws (render {
       project = "p";
       entries.BAD = {
+        description = "bad";
         composed = "x";
         ref = {
           item = "y";
@@ -312,6 +465,7 @@ runTests "Secrets Extension Tests" {
     check = throws (render {
       project = "p";
       entries.BAD = {
+        description = "bad";
         composed = "x";
         providers = [ "p" ];
       };
@@ -322,6 +476,7 @@ runTests "Secrets Extension Tests" {
     check = throws (render {
       project = "p";
       entries.BAD = {
+        description = "bad";
         composed = "x";
         default = "y";
       };
@@ -334,12 +489,13 @@ runTests "Secrets Extension Tests" {
         out = render {
           project = "p";
           entries.TPL = {
-            composed = ''''${X}'';
+            description = "template";
+            composed = "\${X}";
             asPath = true;
           };
         };
       in
-      hasInfix ''TPL = { as_path = true, composed = "''${X}" }'' out;
+      hasInfix ''TPL = { as_path = true, composed = "''${X}", description = "template" }'' out;
   };
 
   renderOmitsEmptySections = {
@@ -365,7 +521,7 @@ runTests "Secrets Extension Tests" {
   rejectScopeReferencingUnknownSecret = {
     check = throws (render {
       project = "x";
-      entries.FOO = { };
+      entries.FOO.description = "foo";
       scopes.bad.secrets = [ "MISSING" ];
     });
   };
@@ -373,9 +529,12 @@ runTests "Secrets Extension Tests" {
   rejectRefWithoutItem = {
     check = throws (render {
       project = "x";
-      entries.FOO.ref = {
-        item = "";
-        field = "token";
+      entries.FOO = {
+        description = "foo";
+        ref = {
+          item = "";
+          field = "token";
+        };
       };
     });
   };
@@ -403,6 +562,28 @@ runTests "Secrets Extension Tests" {
     });
   };
 
+  # secretspec rejects the whole manifest when a secret has no description.
+  rejectEntryWithoutDescription = {
+    check = throws (render {
+      project = "x";
+      entries.FOO = { };
+    });
+  };
+
+  rejectCredentialAddressWithoutItem = {
+    check = throws (render {
+      project = "x";
+      providers.team = {
+        uri = "onepassword://Prod";
+        credentials.service_account_token = {
+          provider = "file:/etc/secrets";
+          ref.field = "token";
+        };
+      };
+      entries.FOO.description = "foo";
+    });
+  };
+
   # --- option module (target-side, merged across class modules) ---
 
   optionsMergeAcrossModules = {
@@ -414,7 +595,7 @@ runTests "Secrets Extension Tests" {
       && cfg.entries.GITHUB_TOKEN.description == "from module one"
       && cfg.entries.API_KEY.required == false
       && cfg.entries.CA_BUNDLE.asPath == true
-      && cfg.providers.team.credentials.service_account_token == "env";
+      && cfg.providers.team.credentials.service_account_token == "keyring";
   };
 
   optionsRenderMerged = {
@@ -432,13 +613,46 @@ runTests "Secrets Extension Tests" {
         };
       in
       hasInfix "[scopes.api]\nsecrets = [ \"GITHUB_TOKEN\" ]" out
-      && hasInfix "API_KEY = { required = false }" out;
+      && hasInfix ''API_KEY = { description = "API key", required = false }'' out;
+  };
+
+  optionsAcceptCredentialAddress = {
+    check =
+      let
+        evaluated = lib.evalModules {
+          modules = [
+            ../../extensions/secrets/options.nix
+            {
+              config.secretspec = {
+                entries.FOO.description = "foo";
+                providers.team = {
+                  uri = "onepassword://Prod";
+                  credentials.service_account_token = {
+                    provider = "file:/etc/secrets";
+                    ref.item = "service_account_token";
+                  };
+                };
+              };
+            }
+          ];
+        };
+        cred = evaluated.config.secretspec.providers.team.credentials.service_account_token;
+      in
+      cred.provider == "file:/etc/secrets"
+      && cred.ref.item == "service_account_token"
+      && cred.ref.field == null;
   };
 
   # --- extension wiring (substrate-side) ---
 
+  # Contributions are module functions (they inject providerPackages), not paths.
   contributesNixosModule = {
-    check = contributed == [ ../../extensions/secrets/nixos-module.nix ];
+    check = builtins.length contributed == 1 && builtins.isFunction (builtins.head contributed);
+  };
+
+  contributesHomeManagerModule = {
+    check =
+      builtins.length contributedUsers == 1 && builtins.isFunction (builtins.head contributedUsers);
   };
 
   # --- wrap backend (registered when the wrappers extension is loaded) ---
@@ -575,7 +789,7 @@ runTests "Secrets Extension Tests" {
       let
         eval = lib.evalModules {
           modules = [
-            ../../extensions/secrets/nixos-module.nix
+            (import ../../extensions/secrets/nixos-module.nix { inherit lib; })
             {
               options.networking.hostName = lib.mkOption { type = lib.types.str; };
               options.environment.etc = lib.mkOption { type = lib.types.raw; };
@@ -619,7 +833,7 @@ runTests "Secrets Extension Tests" {
       builtins.deepSeq nixEval.config
         (lib.evalModules {
           modules = [
-            ../../extensions/secrets/nixos-module.nix
+            (import ../../extensions/secrets/nixos-module.nix { inherit lib; })
             {
               options.networking.hostName = lib.mkOption {
                 type = lib.types.str;
@@ -645,7 +859,45 @@ runTests "Secrets Extension Tests" {
     check = !(eval.config.substrate.settings ? homeManagerModules);
   };
 
-  contributesHomeManagerModule = {
-    check = contributedUsers == [ ../../extensions/secrets/home-manager-module.nix ];
+  # --- provider CLIs (substrate.settings.secrets.providerPackages) ---
+
+  contributedModuleEvaluates = {
+    check =
+      let
+        nixosService = unwrap contributedNixosEval.config.systemd.services.secretspec-materialize;
+        hmUnit = unwrap contributedHmEval.config.systemd.user.services.secretspec-materialize;
+      in
+      nixosService.serviceConfig.Type == "oneshot" && hmUnit.Service.Type == "oneshot";
+  };
+
+  # The paths come from the pkgs the wrap build ran with, not from anything
+  # resolved in substrate's own evaluation.
+  providerPackagesInWrapStub = {
+    check =
+      hasInfix ''PATH="/nix/store/hash-op-2.32.0/bin:$PATH"''
+        ((packagesWrapsArgs null).wrap.withSecret {
+          package = fakePkg;
+          scope = "github";
+        }).body;
+  };
+
+  noWrapStubPathWithoutProviderPackages = {
+    check =
+      !(hasInfix "PATH="
+        ((wrapsArgs null).wrap.withSecret {
+          package = fakePkg;
+          scope = "github";
+        }).body
+      );
+  };
+
+  providerPackagesInNixosMaterializer = {
+    check = hasInfix ":/nix/store/hash-op-2.32.0/bin" (unwrap packagesNixosEval.config.systemd.services.secretspec-materialize)
+    .serviceConfig.ExecStart;
+  };
+
+  providerPackagesInHmMaterializer = {
+    check = hasInfix ":/nix/store/hash-op-2.32.0/bin" (unwrap packagesHmEval.config.systemd.user.services.secretspec-materialize)
+    .Service.ExecStart;
   };
 }
