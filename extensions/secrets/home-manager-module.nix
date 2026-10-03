@@ -80,7 +80,7 @@ in
 
     systemd.user.services.secretspec-materialize = lib.mkIf (cfg.entries != { } && hasFileEntries) {
       Unit.description = "Materialize secretspec entries as runtime files";
-      wantedBy = [ "default.target" ];
+      Install.WantedBy = [ "default.target" ];
       Service = {
         Type = "oneshot";
         RemainAfterExit = true;
