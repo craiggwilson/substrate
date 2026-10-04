@@ -189,6 +189,17 @@ let
     options.environment.etc = lib.mkOption { type = lib.types.raw; };
     options.environment.systemPackages = lib.mkOption { type = lib.types.raw; };
     options.systemd.services = lib.mkOption { type = lib.types.raw; };
+    options.systemd.tmpfiles = lib.mkOption {
+      type = lib.types.submodule (
+        { ... }: {
+          options.rules = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+          };
+        }
+      );
+      default = { };
+    };
     config.secretspec = {
       entries.FOO = {
         description = "foo";
@@ -771,7 +782,27 @@ runTests "Secrets Extension Tests" {
       in
       service.serviceConfig.Type == "oneshot"
       && hasInfix "secretspec-materialize-files" service.serviceConfig.ExecStart
-      && service.serviceConfig.Environment == [ "SECRETSPEC_FILE=/etc/secretspec.toml" ];
+      && builtins.elem "SECRETSPEC_FILE=/etc/secretspec.toml" service.serviceConfig.Environment;
+  };
+
+  # A systemd system unit has no HOME, and secretspec refuses to resolve
+  # anything without an XDG config directory, so the unit supplies one.
+  nixosMaterializerSuppliesXdgDirs = {
+    check =
+      let
+        environment =
+          (unwrap nixEval.config.systemd.services.secretspec-materialize).serviceConfig.Environment;
+      in
+      builtins.elem "XDG_CONFIG_HOME=/var/lib" environment
+      && builtins.elem "XDG_STATE_HOME=/var/lib" environment;
+  };
+
+  nixosMaterializerCreatesXdgDirs = {
+    check =
+      let
+        rules = unwrap nixEval.config.systemd.tmpfiles.rules;
+      in
+      builtins.elem "d /var/lib/secretspec 0700 root root -" rules;
   };
 
   materializerFetchesAndInstalls = {
@@ -795,7 +826,21 @@ runTests "Secrets Extension Tests" {
               options.environment.etc = lib.mkOption { type = lib.types.raw; };
               options.environment.systemPackages = lib.mkOption { type = lib.types.raw; };
               options.systemd.services = lib.mkOption { type = lib.types.raw; };
-              config.secretspec.entries.BAR.ref.item = "y";
+              options.systemd.tmpfiles = lib.mkOption {
+                type = lib.types.submodule (
+                  { ... }: {
+                    options.rules = lib.mkOption {
+                      type = lib.types.listOf lib.types.str;
+                      default = [ ];
+                    };
+                  }
+                );
+                default = { };
+              };
+              config.secretspec.entries.BAR = {
+                description = "bar";
+                ref.item = "y";
+              };
             }
           ];
           specialArgs = {
@@ -879,6 +924,37 @@ runTests "Secrets Extension Tests" {
           package = fakePkg;
           scope = "github";
         }).body;
+  };
+
+  # A wrapped command run by a system unit has no HOME either; the stub defaults
+  # an XDG root only in that case, so a session keeps its own.
+  wrapStubDefaultsXdgRootForHostBuild = {
+    check =
+      let
+        body =
+          ((packagesWrapsArgs null).wrap.withSecret {
+            package = fakePkg;
+            scope = "github";
+          }).body;
+      in
+      hasInfix ''if [[ -z "''${HOME:-}" && -z "''${XDG_CONFIG_HOME:-}" ]]; then'' body
+      && hasInfix ''export XDG_CONFIG_HOME="/var/lib"'' body
+      && hasInfix ''export XDG_STATE_HOME="/var/lib"'' body;
+  };
+
+  # User builds run with a HOME, so they get no fallback at all: an unexpected
+  # missing HOME should fail with secretspec's own error rather than relocate a
+  # provider CLI's state to a guessed path.
+  userBuildStubHasNoXdgFallback = {
+    check =
+      let
+        body =
+          ((packagesWrapsArgs { name = "u"; }).wrap.withSecret {
+            package = fakePkg;
+            scope = "github";
+          }).body;
+      in
+      !(hasInfix "export XDG_CONFIG_HOME" body) && !(hasInfix "export XDG_STATE_HOME" body);
   };
 
   noWrapStubPathWithoutProviderPackages = {

@@ -24,6 +24,15 @@ let
     ;
   cfg = config.secretspec;
 
+  # A systemd system unit runs with no HOME, and secretspec resolves its global
+  # config (and the audit log's state directory) through the XDG base directory
+  # spec before it does anything else — without these it fails every call with
+  # "Unable to determine location of config directory".
+  #
+  # Plain roots, as the spec intends: each program appends its own name, so this
+  # yields /var/lib/secretspec/{config.toml,audit.log} and /var/lib/op/config.
+  xdgRoot = "/var/lib";
+
   hasFileEntries = builtins.any (e: e.file != null) (builtins.attrValues cfg.entries);
 
   manifestFile = pkgs.writeText "secretspec.toml" (render {
@@ -77,8 +86,16 @@ in
         Type = "oneshot";
         RemainAfterExit = true;
         ExecStart = "${materializerDrv}/bin/secretspec-materialize-files";
-        Environment = [ "SECRETSPEC_FILE=${paths.nixosManifest}" ];
+        Environment = [
+          "SECRETSPEC_FILE=${paths.nixosManifest}"
+          "XDG_CONFIG_HOME=${xdgRoot}"
+          "XDG_STATE_HOME=${xdgRoot}"
+        ];
       };
     };
+
+    # Root-only, and the same directory the materialized files land in: it holds
+    # the audit log, which records which secret was read by which unit.
+    systemd.tmpfiles.rules = [ "d ${xdgRoot}/secretspec 0700 root root -" ];
   };
 }

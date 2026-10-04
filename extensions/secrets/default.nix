@@ -96,6 +96,21 @@ let
       name = baseNameOf (lib.getExe cfg.package);
       fileArg = "--file \"${manifestFor cfg.manifest usercfg}\"";
       prefix = "${pkgs.secretspec}/bin/secretspec run ${fileArg} --scope ${lib.escapeShellArg cfg.scope} --caller substrate --caller-operation run --reason ${lib.escapeShellArg cfg.reason} --";
+
+      # secretspec resolves an XDG config directory before it reads anything, and
+      # fails every call with "Unable to determine location of config directory"
+      # without one; a systemd unit has no HOME to derive it from. So a wrapper a
+      # unit runs supplies one — but only when the caller has neither HOME nor
+      # XDG_CONFIG_HOME, so an interactive session keeps its own.
+      #
+      # Plain XDG roots, as the spec intends: secretspec and the provider CLIs
+      # each append their own name, giving /var/lib/secretspec/{config.toml,
+      # audit.log} and /var/lib/op/config.
+      #
+      # Host builds only (usercfg == null, the same signal manifestFor uses). A
+      # user build runs with a HOME; if one ever does not, failing with
+      # secretspec's own error beats relocating a CLI's state to a guessed path.
+      xdgRoot = "/var/lib";
     in
     pkgs.runCommand name
       {
@@ -105,6 +120,14 @@ let
       ''
         makeWrapper ${lib.getExe cfg.package} "$out/bin/.${name}-core" --inherit-argv0
         substitute ${pkgs.writeShellScript "${name}-outer" ''
+          # Secretspec needs an XDG config directory; see xdgRoot above for when
+          # this fires and why it is host builds only.
+          ${lib.optionalString (usercfg == null) ''
+            if [[ -z "''${HOME:-}" && -z "''${XDG_CONFIG_HOME:-}" ]]; then
+              export XDG_CONFIG_HOME="${xdgRoot}"
+              export XDG_STATE_HOME="${xdgRoot}"
+            fi
+          ''}
           ${lib.optionalString (providerPackages pkgs != [ ]) ''
             PATH="${lib.makeBinPath (providerPackages pkgs)}:$PATH"
           ''}

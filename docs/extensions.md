@@ -632,6 +632,17 @@ runtime.
 - `wrap.withSecret` wraps a command with `secretspec run` scoped to one
   scope; resolved values are injected into the child's environment at exec
   time.
+- SecretSpec resolves an XDG config directory before it reads anything, and
+  fails every call without one. A systemd unit has no `HOME` to derive it from,
+  so the runtime contexts this extension builds supply one when the caller has
+  neither `HOME` nor `XDG_CONFIG_HOME`: the NixOS materializer unit gets
+  `XDG_CONFIG_HOME`/`XDG_STATE_HOME` = `/var/lib`, and so does a `wrap.withSecret`
+  stub built for a host (the unit-run case, e.g. an `ExecStartPre`). Each program
+  appends its own name under those plain roots — SecretSpec writes
+  `/var/lib/secretspec/{config.toml,audit.log}`, a provider CLI writes
+  `/var/lib/op/config` — and `/var/lib/secretspec` is created `0700 root`.
+  Wrappers built for a user configuration get no fallback (they run with a
+  `HOME`), and an interactive session keeps its own directories either way.
 - Entries with `asPath = true` are materialized as temporary files at
   resolution, for consumers that insist on a path.
 - Manifest references are store-visible (vault/item/field names, like
