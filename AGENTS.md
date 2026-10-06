@@ -62,7 +62,7 @@ substrate.modules.programs.git = {
 Finders determine which modules to include in a configuration. The interface is:
 
 ```nix
-substrate.finders.<name>.find = cfgs: [ ... ];
+substrate.moduleFinders.<name>.find = cfgs: [ ... ];
 ```
 
 Where `cfgs` is a list of host/user configurations and the result is a list of matching modules.
@@ -74,7 +74,7 @@ Extensions add capabilities by:
 2. Adding output builders to `substrate.outputs.global` (invoked once) or
    `substrate.outputs.perSystem` (invoked once per system); entries are
    `{ build = fn; }` where fn receives the category's context
-3. Registering new finders in `substrate.finders`
+3. Registering new finders in `substrate.moduleFinders`
 4. Adding to `substrate.settings.supportedClasses`
 5. Pushing module contributors to `substrate.settings.contributors`, each entry
    declaring the `class` it targets; builders consume only the entries whose
@@ -149,7 +149,7 @@ be passed into host/user modules.
 Builders integrate substrate with build systems. Currently only flake-parts is supported. The builder:
 1. Evaluates the substrate configuration
 2. Calls registered output builders
-3. Produces flake outputs
+3. Produces the requested outputs
 
 ## Nix Idioms Used
 
@@ -193,7 +193,7 @@ nix flake check
 ### Adding a New Finder
 
 1. Create extension or modify existing one
-2. Register finder: `config.substrate.finders.<name>.find = cfgs: ...`
+2. Register finder: `config.substrate.moduleFinders.<name>.find = cfgs: ...`
 3. Optionally set as default: `config.substrate.settings.modulesFinder = "<name>"`
 
 ### Modifying Core Behavior

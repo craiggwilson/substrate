@@ -26,19 +26,26 @@ nix flake show --json | jq '.checks'
 
 ```
 tests/
-├── lib.nix              # Shared test utilities
-├── core/                # Core module tests
+├── lib.nix                    # Shared test utilities
+├── core/                      # Core module tests
 │   ├── modules-test.nix
 │   ├── lib-test.nix
 │   ├── hosts-users-test.nix
 │   ├── finders-test.nix
+│   ├── outputs-test.nix
 │   └── overlays-packages-test.nix
-├── extensions/          # Extension tests
+├── extensions/                # Extension tests
 │   ├── tags-test.nix
-│   └── home-manager-test.nix
-└── builders/            # Builder tests
+│   ├── home-manager-test.nix
+│   ├── jail-test.nix
+│   ├── secrets-test.nix
+│   └── wrappers-test.nix
+└── builders/                  # Builder tests
     └── checks-test.nix
 ```
+
+Every file listed here is wired into `flake.nix` as a check. There are twelve:
+six core, five extension, one builder.
 
 ## Test Library
 
@@ -49,19 +56,29 @@ let
   testLib = import ../lib.nix { inherit pkgs; };
   inherit (testLib) lib evalSubstrate runTests;
 in
-# Use testLib functions
+runTests "My Tests" { }
 ```
 
 ### Available Functions
 
 | Function | Description |
 |----------|-------------|
-| `runTests` | Run a test suite and return results |
+| `runTests` | Run a test suite and return `{ results, allPassed, summary }` |
+| `runTest` | Run a single `{ name, check }` and return its result |
 | `evalSubstrate` | Evaluate substrate with core modules |
 | `evalSubstrateExtended` | Evaluate with hosts/users/checks |
-| `mkEvalSubstrate` | Create custom evaluator with specific modules |
+| `mkEvalSubstrate` | Create a custom evaluator from a base module list |
+| `classEval` | Evaluate a target configuration as a builder would build it, consuming only the contributions for `class` |
+| `classWrap` | Make one `wrap.package` call from a module of the target configuration, the way a real module sees it |
 | `coreModules` | List of core module paths |
 | `extendedCoreModules` | Core modules plus hosts/users/checks |
+| `minimalCoreModules` | Settings, lib, modules and finders only |
+| `mkSummary` | Render results as the text `runTests` prints |
+| `lib` | `pkgs.lib`, re-exported for convenience |
+
+`classEval` and `classWrap` take the evaluation and return a fresh
+`lib.evalModules` result, so a contribution cannot pass a test that no builder
+would actually load.
 
 ## Writing Tests
 
@@ -97,7 +114,15 @@ let
       check =
         let
           result = builtins.tryEval (
-            # Expression that might fail
+            let
+              eval = evalSubstrate [
+                {
+                  # Invalid: systems is a list of strings
+                  config.substrate.settings.systems = "not-a-list";
+                }
+              ];
+            in
+            builtins.deepSeq eval.config.substrate.settings.systems true
           );
         in
         # Test that evaluation fails
@@ -200,7 +225,7 @@ tests = {
             };
           }
         ];
-        found = eval.config.substrate.finders.by-tags.find [
+        found = eval.config.substrate.moduleFinders.by-tags.find [
           eval.config.substrate.users.testuser
         ];
       in
@@ -211,15 +236,18 @@ tests = {
 
 ## Registering Tests
 
-Add new tests to `flake.nix`:
+Add new tests to `flake.nix`. There are two helpers: `mkTest` for a test that
+needs nothing but `pkgs`, and `mkTestWith` for one that needs extra arguments —
+the jail test, for example, has to be handed the real `jail.nix`.
 
 ```nix
 checks = forAllSystems (
   pkgs:
   let
-    mkTest = name: testFile:
+    mkTestWith =
+      name: extraArgs: testFile:
       let
-        testResults = import testFile { inherit pkgs; };
+        testResults = import testFile ({ inherit pkgs; } // extraArgs);
       in
       pkgs.runCommand "substrate-${name}" { } ''
         if ${pkgs.lib.boolToString testResults.allPassed}; then
@@ -232,11 +260,13 @@ checks = forAllSystems (
           exit 1
         fi
       '';
+    mkTest = name: mkTestWith name { };
   in
   {
     # Existing tests
     core-modules-test = mkTest "modules-test" ./tests/core/modules-test.nix;
-    
+    extensions-jail-test = mkTestWith "jail-test" { jailNix = jail-nix; } ./tests/extensions/jail-test.nix;
+
     # Add your new test
     my-new-test = mkTest "my-new-test" ./tests/core/my-new-test.nix;
   }
@@ -308,7 +338,7 @@ testWithDebug = {
   check =
     let
       eval = evalSubstrate [ ... ];
-      found = eval.config.substrate.finders.all.find [ ];
+      found = eval.config.substrate.moduleFinders.all.find [ ];
       # Use trace for debugging
       _ = builtins.trace "Found ${toString (lib.length found)} modules" null;
     in

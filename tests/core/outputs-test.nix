@@ -28,7 +28,7 @@ runTests "Outputs Tests" {
   };
 
   # Test 2: builders registered under a category are readable and callable,
-  # returning the attrset the flake output is built from
+  # returning the attrset the output name is built from
   builderRegistration = {
     check =
       let

@@ -38,7 +38,7 @@ in
       publish.packages = lib.mkOption {
         type = lib.types.listOf lib.types.path;
         default = [ ];
-        description = "Paths to package files to publish as packages and overlay flake outputs.";
+        description = "Paths to package files to publish under the packages and overlays output names.";
       };
     };
 

@@ -59,13 +59,21 @@ Add substrate as a flake input:
 
 ## Documentation
 
-See the [docs/](./docs/) folder for comprehensive documentation:
+Documentation is an [mdBook](https://rust-lang.github.io/mdBook/), built with a
+generated option reference and a link check:
 
-- [Getting Started](./docs/getting-started.md) - Installation and basic usage
-- [Concepts](./docs/concepts.md) - Core concepts (hosts, users, modules, finders)
-- [Extensions](./docs/extensions.md) - Available extensions and how to use them
-- [Builders](./docs/builders.md) - Build system integration
-- [Testing](./docs/testing.md) - Running and writing tests
+```bash
+nix build .#docs   # HTML at result/book/index.html
+```
+
+Or read it as plain Markdown under [docs/src](./docs/src/):
+
+- [Introduction](./docs/src/introduction.md) - Overview and quick start
+- [Getting Started](./docs/src/getting-started.md) - Installation and first configuration
+- [Core Concepts](./docs/src/concepts.md) - Hosts, users, modules, finders, builders
+- [Extensions](./docs/src/extensions/index.md) - Available extensions and composition hooks
+- [Builders](./docs/src/builders.md) - Build system integration
+- [Testing](./docs/src/testing.md) - Running and writing tests
 
 ## Running Tests
 

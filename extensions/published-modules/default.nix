@@ -11,19 +11,19 @@ in
     nixosModules = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;
       default = { };
-      description = "Named NixOS modules to publish as the nixosModules flake output.";
+      description = "Named NixOS modules to publish under the nixosModules output name.";
     };
 
     homeManagerModules = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;
       default = { };
-      description = "Named Home Manager modules to publish as the homeManagerModules flake output.";
+      description = "Named Home Manager modules to publish under the homeManagerModules output name.";
     };
 
     substrateModules = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;
       default = { };
-      description = "Named substrate modules to publish as the substrateModules flake output.";
+      description = "Named substrate modules to publish under the substrateModules output name.";
     };
   };
 

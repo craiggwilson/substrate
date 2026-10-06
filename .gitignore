@@ -4,3 +4,7 @@ result-*
 
 # Ignore automatically generated direnv output
 .direnv
+
+# mdBook's own build directory, for `nix develop` and a plain `mdbook build`.
+# `nix build .#docs` writes to the store instead and leaves nothing here.
+docs/book/

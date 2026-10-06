@@ -28,7 +28,7 @@ This document explains the fundamental concepts in substrate.
 │                                                             │
 │  ┌─────────────────────────────────────────────────────────┐│
 │  │                   Output Builders                       ││
-│  │  Generate flake outputs from substrate configuration    ││
+│  │  Interpret each output name by the build system          ││
 │  │  • nixosConfigurations                                  ││
 │  │  • homeConfigurations                                   ││
 │  │  • packages, overlays, devShells                        ││
@@ -97,30 +97,46 @@ substrate.modules = {
 
 Each module can define configuration for different "classes":
 
+| Class | Purpose |
+|-------|---------|
+| `nixos` | A module added to the NixOS system configurations |
+| `homeManager` | A module added to the Home Manager user configurations |
+| `generic` | A module added to *every* class's configuration |
+
 ```nix
 substrate.modules.programs.git = {
-  # NixOS module - system-level configuration
-  nixos = { config, pkgs, ... }: {
+  # A NixOS module - merged into the system configuration
+  nixos = { pkgs, ... }: {
+    environment.systemPackages = [ pkgs.git ];
+  };
+
+  # A Home Manager module - merged into the user configuration
+  homeManager = { pkgs, ... }: {
     programs.git.enable = true;
   };
 
-  # Home Manager module - user-level configuration
-  homeManager = { config, pkgs, ... }: {
-    programs.git = {
-      enable = true;
-      userName = "Alice";
-    };
-  };
-
-  # Generic - shared data accessible to all
-  generic = {
-    programs.git = {
-      description = "Git version control";
-      category = "development";
+  # A shared module, merged into both configurations:
+  # declare the schema once, and every class sees it
+  generic = { lib, ... }: {
+    options.myConfig.app.terminal = lib.mkOption {
+      description = "The terminal emulator.";
+      type = lib.types.nullOr lib.types.package;
+      default = null;
     };
   };
 };
 ```
+
+`generic` exists so an interface can be declared once and still be offered to
+every class. The same fragment is included in each class configuration's
+module list, so a default set there — or an option it *requires* — applies to
+`nixos` and `homeManager` identically, and both fragments read the same
+`myConfig.` paths without restating anything.
+
+Because the fragment lands in configurations you did not write, it may
+*declare* anything but may only *set* what is valid in every class. A
+definition of an option `nixos` does not have fails the build at evaluation
+time.
 
 ### Leaf Detection
 
@@ -136,7 +152,7 @@ Only leaf nodes are collected and included in configurations.
 Finders determine which modules to include in a configuration. The finder interface is:
 
 ```nix
-substrate.finders.<name>.find = cfgs: [ ... ];
+substrate.moduleFinders.<name>.find = cfgs: [ ... ];
 ```
 
 Where:
@@ -185,16 +201,33 @@ substrate.settings = {
   # Modules contributed to configurations, each declaring its target class
   # (extensions push into this; builders consume via substrate.lib.contributionsFor)
   contributors = [ { class = "nixos"; contribute = ...; } ... ];
+
+  # Files to publish under an output name. Extensions add to this namespace:
+  # publish.packages, publish.shells, publish.nixosModules, ...
+  publish = { ... };
+
+  # Configuration validation checks, run by builders that support them
+  checks = [ ... ];
 };
 ```
 
+`settings` is the core vocabulary; individual extensions declare their own keys
+in it. For the exhaustive list of every option and which file declares it, see
+the [option reference](reference/options.md).
+
 ## Output Builders
 
-Output builders generate flake outputs. They're registered by extensions
-under the category that matches how they run:
+An output builder fills in one output *name* — for instance
+`nixosConfigurations` or `packages` — and is invoked by whichever build is
+active. Core has no opinion on what a name means; the builder decides. The
+flake-parts builder maps each name to a flake output of the same name (that
+one is inherently flake-based), and another builder could interpret the same
+names differently — or ignore them.
+
+Builders register under the category that matches how they run:
 
 ```nix
-# Invoked once, results merged into the flake output of the same name
+# Invoked once, results merged under the same output name
 config.substrate.outputs.global.homeConfigurations = [
   {
     build = { inputs, substrate }: { ... };
@@ -231,16 +264,21 @@ arrives in modules as an argument of the same name, computed per build with
 
 | Function | Description |
 |----------|-------------|
-| `unique` | Deduplicate a list |
-| `findModulesForClass` | Get modules for a specific class |
-| `extraArgsGenerator` | Generate specialArgs for configurations |
+| `contributionsFor` | Collect the modules contributed for a given class. Builders call it with the class they speak; contributions targeting other classes are ignored |
+| `extraArgsGenerator` | Generate `specialArgs` for configurations |
+| `findModulesForClass` | Get modules for a specific class, via the configured finder |
+| `hasClass` | Whether a class name is in `settings.supportedClasses` |
+| `nameFromPath` | Basename of a path with `.nix` stripped (`foo.nix` → `foo`, `foo/` → `foo`) |
 | `resolveInput` | Look up a flake input by role name, honoring `settings.inputs` overrides |
+| `unique` | Deduplicate a list |
+
+Extensions add to `substrate.lib` by assigning `config.substrate.lib.<name>`.
 
 ## Configuration Flow
 
 1. **Definition**: You define hosts, users, and modules
 2. **Finding**: The configured finder selects relevant modules
-3. **Building**: Output builders generate flake outputs
+3. **Building**: Output builders fill in each output name
 4. **Evaluation**: Nix evaluates the final configurations
 
 ```
@@ -253,9 +291,12 @@ Substrate is designed for extension:
 
 1. **New finders**: Implement custom module selection logic
 2. **New classes**: Add support for new configuration targets
-3. **New outputs**: Generate additional flake outputs
+3. **New outputs**: Register a builder for an additional output name
 4. **New options**: Add configuration options to hosts/users/modules
-5. **Module contributors**: Push modules into configurations via
+5. **New builders**: Integrate substrate with a different build system; the
+   flake-parts builder is just the first one. See
+   [Creating Custom Builders](builders.md#creating-custom-builders).
+6. **Module contributors**: Push modules into configurations via
    `substrate.settings.contributors`. Each entry declares the `class` it targets
    and a `contribute` function that receives that class's build context (`{ inputs,
    substrate, hostname, hostcfg, userConfigs }` for host classes; `{ inputs,

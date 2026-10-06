@@ -20,9 +20,60 @@
         "aarch64-darwin"
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+
+      # The book, with the option reference generated from the module system and
+      # dropped in ahead of the build. Generating it here rather than checking in
+      # a copy is the point: the reference cannot describe an option that no
+      # longer exists.
+      #
+      # The link checker runs as a separate step rather than as an mdbook
+      # preprocessor, because mdBook discards a preprocessor's exit code: as a
+      # preprocessor the check would report nothing and still pass. Run
+      # standalone, its failure is a real failure. See docs/book.toml.
+      docsBook =
+        pkgs:
+        let
+          optionReference = pkgs.writeText "options.md" (import ./docs/gen/options.nix { inherit pkgs; });
+          src = pkgs.runCommand "substrate-docs-src" { } ''
+            mkdir -p $out
+            cp -r ${./docs}/. $out
+            # Store paths arrive read-only, and reference/ holds nothing in the
+            # source tree because the generated chapter is the only file in it.
+            chmod -R u+w $out
+            mkdir -p $out/src/reference
+            cp ${optionReference} $out/src/reference/options.md
+          '';
+        in
+        pkgs.runCommand "substrate-docs" {
+          nativeBuildInputs = [
+            pkgs.mdbook
+            pkgs.mdbook-linkcheck2
+            # linkcheck2 builds an HTTP client when it starts, even with --files
+            # naming no file to fetch, and does not survive the unwrap without a
+            # trust store. The build sandbox is what keeps a web link from
+            # actually going out.
+            pkgs.cacert
+          ];
+        } ''
+          mdbook build ${src} -d $out
+          # -f names no file, so no external link is fetched and the check needs
+          # no network. Internal links are checked in every file regardless.
+          mdbook-linkcheck2 --standalone --no-cache --files=__no_web_links__ ${src}
+        '';
     in
     (import ./.)
     // {
+      packages = forAllSystems (pkgs: { docs = docsBook pkgs; });
+
+      devShells = forAllSystems (pkgs: {
+        default = pkgs.mkShell {
+          packages = [
+            pkgs.mdbook
+            pkgs.mdbook-linkcheck2
+          ];
+        };
+      });
+
       checks = forAllSystems (
         pkgs:
         let
@@ -64,6 +115,11 @@
 
           # Builder tests
           builders-checks-test = mkTest "checks-test" ./tests/builders/checks-test.nix;
+
+          # Docs. Not a mkTest: there is no test file, and building the book
+          # already fails on a chapter missing from SUMMARY.md or on a broken
+          # cross-reference, because create-missing and the link checker are on.
+          docs = docsBook pkgs;
         }
       );
     };

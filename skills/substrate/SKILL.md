@@ -41,7 +41,12 @@ You are a substrate framework expert. You understand the module tree structure, 
 | `core/users.nix` | User configuration type |
 | `core/outputs.nix` | Output builder registration |
 | `core/checks.nix` | Configuration validation |
-| `builders/flake-parts/adapter.nix` | flake-parts integration |
+| `builders/flake-parts/default.nix` | flake-parts integration |
+| `builders/flake-parts/adapter.nix` | Flake-parts adapter implementation |
+| `builders/flake-parts/checks.nix` | Turns `settings.checks` into a flake check |
+| `extensions/wrappers/class-module.nix` | Publishes the `wrap` module argument |
+| `extensions/wrappers/render.nix` | Renders a wrapper spec into a package |
+| `extensions/wrappers/builders.nix` | Wrappers' output builders |
 | `tests/lib.nix` | Test utilities |
 
 ## Constraints
@@ -79,22 +84,25 @@ options.substrate.settings.myOption = lib.mkOption {
 ### Registering an Output Builder
 
 ```nix
-config.substrate.outputs.myOutput = [
+config.substrate.outputs.perSystem.myOutput = [
   {
-    type = "per-system";  # or "global"
-    build = { pkgs, substrate, ... }: {
-      # Return attrset to merge into flake output
+    build = { pkgs, system, inputs, substrate }: {
+      # Return attrset to merge into this output name
     };
   }
 ];
 ```
 
+The attribute path picks the category: `perSystem` runs once per system and
+receives `{ pkgs, system, inputs, substrate }`; `global` runs once and receives
+`{ inputs, substrate }`. There is no `type` field.
+
 ### Implementing a Finder
 
 ```nix
-config.substrate.finders.my-finder.find = cfgs:
+config.substrate.moduleFinders.my-finder.find = cfgs:
   let
-    allModules = config.substrate.finders.all.find cfgs;
+    allModules = config.substrate.moduleFinders.all.find cfgs;
   in
   lib.filter (m: /* filtering logic */) allModules;
 ```
@@ -154,14 +162,14 @@ The "all" finder returns all modules. Other finders (like "by-tags") filter base
 
 ### Output Builders
 
-Extensions register builders that produce flake outputs:
+Extensions register builders that fill in output names:
 
 ```
 Extension → registers → Output Builder
                             ↓
 Builder (flake-parts) → calls → Output Builder
                             ↓
-                      Flake Output
+                      Output name
 ```
 
 ### Lazy Evaluation

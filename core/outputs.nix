@@ -21,8 +21,8 @@ in
       description = ''
         Output builders invoked once, independent of system (e.g.,
         nixosConfigurations, homeConfigurations, overlays). Each attrset name
-        becomes a flake-level output of the same name; all builders registered
-        for a name have their results merged into it.
+        becomes an output of the same name that the build treats as a whole;
+        all builders registered for a name have their results merged into it.
       '';
       default = { };
     };
@@ -30,8 +30,8 @@ in
       type = lib.types.attrsOf (lib.types.listOf builderType);
       description = ''
         Output builders invoked once per system in substrate.settings.systems
-        (e.g., packages, devShells). Each attrset name becomes a flake output
-        keyed by system; all builders registered for a name have their results
+        (e.g., packages, devShells). Each attrset name becomes an output keyed
+        by system; all builders registered for a name have their results
         merged into it.
       '';
       default = { };

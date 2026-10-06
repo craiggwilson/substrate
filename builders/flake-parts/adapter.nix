@@ -1,5 +1,5 @@
 # Flake-parts adapter for substrate
-# Provides core flake outputs and calls registered output builders
+# Builds the flake from the outputs substrate's registered builders produce
 {
   lib,
   config,
@@ -26,7 +26,7 @@ in
 
   systems = settings.systems;
 
-  # Build per-system outputs under each per-system flake output name
+  # Under flake-parts, each per-system output name becomes a flake output
   perSystem =
     { system, ... }:
     let
@@ -42,7 +42,7 @@ in
     in
     lib.mapAttrs (_: builders: buildAndMerge builderArgs builders) outputs.perSystem;
 
-  # Build global outputs under each flake-level output name
+  # Under flake-parts, each global output name becomes a flake-level output
   flake =
     let
       builderArgs = {

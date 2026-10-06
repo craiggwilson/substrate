@@ -1,0 +1,32 @@
+[book]
+title = "Substrate"
+description = "A Nix module framework for modular, extensible flake configuration."
+authors = ["Craig Wilson"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+# Fail the build if a chapter exists that SUMMARY.md does not list, rather than
+# silently publishing an unreachable page.
+create-missing = false
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/craiggwilson/substrate"
+edit-url-template = "https://github.com/craiggwilson/substrate/edit/master/docs/src/{path}"
+smart-punctuation = true
+
+[output.html.search]
+enable = true
+
+# Link checking is NOT a `[preprocessor]` here. mdBook 0.5 passes the renderer
+# name as an argument that mdbook-linkcheck2 does not accept, and mdBook exits 0
+# when a preprocessor fails — so as a preprocessor it would report nothing and
+# still succeed. `flake.nix` instead runs `mdbook-linkcheck2 --standalone`
+# after the build, where a non-zero exit actually fails the check.
+#
+# What it verifies: that every relative link names a file that exists. It does
+# not verify `#anchor` targets within a page, and the book relies on only three
+# of those, checked by hand.

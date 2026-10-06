@@ -5,7 +5,7 @@
     description = ''
       Additional overlays to apply to nixpkgs when building configurations.
       Each overlay should be a function: final: prev: { ... }
-      These are for internal use only and are not exposed in flake outputs.
+      These are for internal use only and are not exposed under any output name.
     '';
     default = [ ];
   };

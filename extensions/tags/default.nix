@@ -122,7 +122,7 @@ in
         description = ''
           All the tags available for use. A list where each element can be:
           - A simple string: "tag1" (tag with no implications)
-          - A metatag attrset: { "hardware:dell" = [ "laptop" "thunderbolt" ]; }
+          - A metatag attrset: `{ "hardware:dell" = [ "laptop" "thunderbolt" ]; }`
           When a host/user has a metatag, all implied tags are automatically included.
           After apply, all elements are normalized to attrset format for merging.
         '';

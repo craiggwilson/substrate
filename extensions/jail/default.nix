@@ -58,7 +58,7 @@ let
           description = ''
             Function that receives combinators and returns a list of base permissions.
             All jails inherit these permissions by default.
-            Example: combinators: with combinators; [ base bind-nix-store-runtime-closure fake-passwd ]
+            Example: `combinators: with combinators; [ base bind-nix-store-runtime-closure fake-passwd ]`
           '';
           default = null;
         };
@@ -68,7 +68,7 @@ let
           description = ''
             Function that receives builtin combinators and returns an attrset of custom combinators.
             These are exposed under jail.combinators and in jail definitions.
-            Example: builtinCombinators: with builtinCombinators; { my-permission = compose [ (readonly "/foo") ]; }
+            Example: `builtinCombinators: with builtinCombinators; { my-permission = compose [ (readonly "/foo") ]; }`
           '';
           default = null;
         };

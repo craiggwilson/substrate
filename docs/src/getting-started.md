@@ -47,10 +47,8 @@ inputs.substrate.build.with-flake-parts { inherit inputs; } {
   ];
 
   substrate = {
-    # Define a user
-    users.alice = {
-      system = "x86_64-linux";
-    };
+    # Define a user. `system` belongs to the host, not the user.
+    users.alice = { };
 
     # Define a host
     hosts.workstation = {
@@ -152,7 +150,7 @@ Each module can define configuration for different classes:
 |-------|---------|---------|
 | `nixos` | NixOS system configuration | NixOS extension |
 | `homeManager` | Home Manager user configuration | Home Manager extension |
-| `generic` | Shared data/configuration | Available to all |
+| `generic` | A module merged into every class's configuration | NixOS extension, Home Manager extension, and any other |
 
 ```nix
 substrate.modules.programs.neovim = {
@@ -169,12 +167,56 @@ substrate.modules.programs.neovim = {
     };
   };
 
-  # Shared data (accessible via specialArgs)
-  generic = {
-    description = "Neovim text editor";
+  # Declared once, so every class offers the same interface
+  generic =
+    { lib, ... }:
+    {
+      options.myConfig.app = {
+        terminal = lib.mkOption {
+          description = "The terminal emulator";
+          type = lib.types.nullOr lib.types.package;
+          default = null;
+        };
+      };
+    };
+};
+```
+
+`generic` is a module like any other, except substrate includes it in *every*
+class's configuration instead of just one. Its option declarations therefore
+land in `nixos` and `homeManager` alike, which is what makes `myConfig.app`
+say the same thing in both. A class fragment may then read it:
+
+```nix
+substrate.modules.flake = {
+  # The interface, set once — this value reaches every class config
+  generic =
+    { lib, ... }:
+    {
+      options.myConfig.flake = lib.mkOption {
+        description = "The path to the flake source directory.";
+        type = lib.types.str;
+        default = "/home/alice/projects/nix-config";
+      };
+    };
+
+  # Both fragments see the same declared option
+  homeManager = { config, ... }: {
+    home.sessionVariables.FLAKE = config.myConfig.flake;
+  };
+
+  nixos = { config, ... }: {
+    environment.variables.FLAKE = config.myConfig.flake;
   };
 };
 ```
+
+The one rule: the fragment is merged into configurations you did not write, so
+it may **declare** anything, but it may only **set** an option that exists in
+every class. Declaring `myConfig.app.terminal` is fine, and so is setting a
+shared option inside the fragment. A stray top-level `description = "...";`
+is not — it becomes a definition of an option `nixos` does not have, and the
+build fails with "The option `description' does not exist".
 
 ## Sharing Helper Functions
 
@@ -208,9 +250,10 @@ substrate.modules.programs.zellij = {
 This replaces depth-sensitive relative imports of shared helpers from within
 modules.
 
-## Flake Outputs
+## Outputs
 
-Substrate generates standard flake outputs:
+The names below are the outputs a builder is asked to fill in. With the
+flake-parts builder, each one becomes a flake output of that name:
 
 - `nixosConfigurations.<hostname>` - NixOS system configurations
 - `homeConfigurations.<user>@<host>` - Home Manager for users of `usersOnly` (home-only) hosts
@@ -221,5 +264,5 @@ Substrate generates standard flake outputs:
 ## Next Steps
 
 - Read [Concepts](./concepts.md) for deeper understanding
-- Explore [Extensions](./extensions.md) for available functionality
+- Explore [Extensions](./extensions/index.md) for available extensions
 - See [Testing](./testing.md) for running and writing tests

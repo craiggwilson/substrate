@@ -1,6 +1,8 @@
 # Builders
 
-Builders integrate substrate with build systems to produce flake outputs.
+Builders integrate substrate with a build system. Each builder decides how
+to interpret the output names extensions register under; the flake-parts
+builder maps them to flake outputs.
 
 ## Available Builders
 
@@ -35,7 +37,7 @@ The primary builder integrates with [flake-parts](https://flake.parts/).
 2. **Loads core modules**: Automatically imports substrate core
 3. **Evaluates configuration**: Processes your substrate config
 4. **Calls output builders**: Invokes registered builders from extensions
-5. **Produces outputs**: Generates standard flake outputs
+5. **Produces outputs**: Maps each output name using the accumulated results
 
 ### Architecture
 
@@ -74,43 +76,50 @@ The adapter handles two types of outputs:
 - `homeConfigurations.<user>@<host>` (home-only hosts only)
 - `overlays.<name>`
 
-### Builder Arguments
-
-Builders are registered under the category that matches how they run; the
-category determines their arguments:
-
-**Per-system builders (`substrate.outputs.perSystem.<name>`):**
-```nix
-{
-  build = { pkgs, system, inputs, substrate }: {
-    # Return attrset to merge into output
-  };
-}
-```
-
-**Global builders (`substrate.outputs.global.<name>`):**
-```nix
-{
-  build = { inputs, substrate }: {
-    # Return attrset to merge into output
-  };
-}
-```
+A builder's `build` function receives the context its category dictates — see
+[Output Builders](concepts.md#output-builders).
 
 ### Checks Integration
 
-The adapter includes a checks module that validates substrate configuration:
+Extensions add validation checks to `substrate.settings.checks`. Each entry
+needs `name`, `valid` and `message`; `warn` (default `false`) makes a failure a
+warning instead of an error:
+
+```nix
+substrate.settings.checks = [
+  {
+    name = "every host has a user";
+    valid = lib.all (h: h.users != [ ]) (lib.attrValues config.substrate.hosts);
+    warn = false;
+    message = "some host has no users";
+  }
+];
+```
+
+The adapter turns them into one flake check that prints a pass/warn/fail summary:
 
 ```nix
 # builders/flake-parts/checks.nix
 {
-  perSystem = { pkgs, ... }: {
-    checks.substrate-config = pkgs.runCommand "substrate-checks" { } ''
-      # Runs validation checks from substrate.settings.checks
-    '';
-  };
+  perSystem =
+    { pkgs, ... }:
+    {
+      checks.substrate-config =
+        assert validated;  # throws listing every hard failure
+        pkgs.runCommand "substrate-config-validation" { } ''
+            echo "All substrate configuration checks passed!"
+            cat <<'EOF'
+          ${summary}
+          EOF
+            touch $out
+        '';
+    };
 }
 ```
+
+A hard failure throws during evaluation, so it surfaces as a broken
+configuration rather than a failed build. Warnings only print through
+`lib.warn`.
 
 ### Combining with Other flake-parts Modules
 
@@ -121,7 +130,7 @@ inputs.substrate.build.with-flake-parts { inherit inputs; } {
   imports = [
     inputs.substrate.substrateModules.home-manager
     inputs.substrate.substrateModules.nixos
-    
+
     # Other flake-parts modules
     inputs.treefmt-nix.flakeModule
     inputs.devshell.flakeModule
@@ -155,12 +164,12 @@ To create a builder for a different build system:
           module   # User's configuration
         ];
       };
-      
+
       substrate = evaluated.config.substrate;
       outputs = substrate.outputs;
     in
     {
-      # Generate flake outputs from substrate configuration
+      # Fill in each output name from the substrate configuration
       # Call registered output builders
       # Return final flake attrset
     };
@@ -175,34 +184,4 @@ Export in `default.nix`:
     with-my-builder = (import ./builders/my-builder).build;
   };
 }
-```
-
-## Output Builder Registration
-
-Extensions register output builders under the category that fits:
-
-```nix
-config.substrate.outputs.perSystem.packages = [
-  {
-    build = { pkgs, ... }:
-      # Return packages attrset
-      { my-package = pkgs.hello; };
-  }
-];
-```
-
-Multiple builders can register for the same output - results are merged:
-
-```nix
-# Extension A
-config.substrate.outputs.perSystem.packages = [
-  { build = { ... }: { pkg-a = ...; }; }
-];
-
-# Extension B
-config.substrate.outputs.perSystem.packages = [
-  { build = { ... }: { pkg-b = ...; }; }
-];
-
-# Result: packages = { pkg-a = ...; pkg-b = ...; }
 ```
