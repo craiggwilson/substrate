@@ -138,6 +138,72 @@ Because the fragment lands in configurations you did not write, it may
 definition of an option `nixos` does not have fails the build at evaluation
 time.
 
+### Module Arguments and Portability
+
+A leaf module is an ordinary module: it may declare arguments like
+`{ inputs, hostcfg, hostname, pkgs, ... }` and the builder supplies them.
+Which arguments a leaf can rely on splits into two groups, and the split
+determines whether the module can be evaluated outside substrate:
+
+| Argument group | Examples | Available |
+|----------------|----------|-----------|
+| Static | `inputs`, `lib` | Every build, identical each time |
+| Build context | `hostcfg`, `hostname`, `usercfg`, `pkgs`, keys from `extraArgsGenerators` | Per build; the tree is shared across hosts, so these do not exist at tree-definition time |
+
+A leaf that takes only static arguments can be made portable by currying the
+arguments into it at the leaf site, where they are already in scope:
+
+```nix
+# in your flake, defining the module tree
+substrate.modules.programs.git.nixos =
+  lib.modules.importApply ./git-nixos.nix { inherit inputs; };
+```
+
+```nix
+# git-nixos.nix — curried: the outer arguments are applied by importApply,
+# the inner function is the plain module
+{ inputs, ... }: { lib, ... }: {
+  # an ordinary NixOS module — evaluates in any nixosSystem call,
+  # with no substrate wiring at all
+  config.programs.git.enable = true;
+}
+```
+
+The curried leaf is a plain attrset module, so substrate's finder collects it
+like any other leaf, and the same file can be imported into a configuration
+built without substrate.
+
+Notes on currying:
+
+- **Curry at the leaf, not the tree node.** Leaf detection looks for class
+  keys (`nixos`, `homeManager`, `generic`) directly on the node's attributes;
+  a curried node carries its content under `imports` instead, so a curried
+  *tree node* is not recognized as a module. Curry each class leaf
+  individually.
+- **Reference one curried value, not two.** Currying the same file twice —
+  even with identical arguments — produces two distinct attrsets, and the
+  module system evaluates each separately. Bind the curried module once and
+  reuse the binding where it is needed in both host and user configurations;
+  substrate's module deduplication then sees the same value and keeps one.
+- **`disabledModules` does not match curried modules by path.** A curried
+  module carries the path as its `_file` but no module-system `key`, so
+  disabling it by path does not work the way it does for path-imported
+  modules.
+
+A leaf that takes build-context arguments cannot be made portable this way —
+the arguments do not exist until a specific host or user is being built, and
+no consumer outside substrate has them. Two honest options exist for such a
+module:
+
+1. **Accept substrate-only evaluation.** The module is written against
+   substrate's builder contract and evaluates wherever substrate builds.
+2. **Use a contributor.** A `substrate.settings.contributors` entry receives
+   the build context in its `contribute` function — which runs in the
+   builder, before the target configuration is evaluated — and returns plain
+   modules. The returned modules are portable in the same sense as a curried
+   leaf: the context is applied before the module system ever sees them, so
+   the modules themselves take no substrate arguments.
+
 ### Leaf Detection
 
 Substrate distinguishes between intermediate nodes and leaf nodes:

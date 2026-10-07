@@ -458,6 +458,55 @@ let
         eval.config.substrate.modules.programs.sharedOnly ? generic
         && eval.config.substrate.modules.programs.sharedOnly.generic != null;
     };
+
+    # Test 19: A curried leaf (lib.modules.importApply) is collected like any leaf.
+    # The curry applies static arguments at the leaf site, so the module is a
+    # plain attrset by the time the finder sees it.
+    curriedLeafIsCollected = {
+      check =
+        let
+          curried = lib.modules.importApply ./fixtures/curried-leaf.nix {
+            inputs = { marker = "from-curry"; };
+          };
+          eval = evalSubstrate [
+            {
+              config.substrate.modules.programs.curried = {
+                nixos = curried;
+              };
+            }
+          ];
+          found = eval.config.substrate.moduleFinders.all.find [ ];
+        in
+        lib.length found == 1 && (builtins.head found).nixos != null;
+    };
+
+    # Test 20: The curried leaf evaluates in a target configuration with NO
+    # specialArgs — the portability property the curry buys. Extraction follows
+    # the same path a builder takes: finder, then class extraction.
+    curriedLeafEvaluatesWithoutSpecialArgs = {
+      check =
+        let
+          curried = lib.modules.importApply ./fixtures/curried-leaf.nix {
+            inputs = { marker = "from-curry"; };
+          };
+          eval = evalSubstrate [
+            {
+              config.substrate.modules.programs.curried = {
+                nixos = curried;
+              };
+            }
+          ];
+          leaves = eval.config.substrate.moduleFinders.all.find [ ];
+          extracted = lib.flatten (
+            lib.map (m: if m ? nixos && m.nixos != null then [ m.nixos ] else [ ]) leaves
+          );
+          target = lib.evalModules {
+            modules = extracted;
+            # deliberately no specialArgs
+          };
+        in
+        target.config.test.curriedValue == "from-curry";
+    };
   };
 in
 runTests "Modules Tests" tests
