@@ -105,8 +105,26 @@ let
             ;
           pkgs = hostPkgs;
         };
+
+        # Flake-shaped nixpkgs exposes nixosSystem on its lib output; pinned
+        # source trees do not, so fall back to the equivalent eval-config call.
+        # The flake's nixosSystem appends a module setting
+        # nixpkgs.flake.source = self.outPath, which pins the system registry
+        # and NIX_PATH to the nixpkgs the system was built with; the fallback
+        # appends the same module with the pinned source, so both shapes
+        # produce the same system.
+        nixosSystem =
+          nixpkgsInput.lib.nixosSystem or (
+            { modules, specialArgs }:
+            import "${nixpkgsInput}/nixos/lib/eval-config.nix" {
+              modules = modules ++ [ { nixpkgs.flake.source = nixpkgsInput; } ];
+              inherit specialArgs;
+              lib = hostPkgs.lib;
+              system = null;
+            }
+          );
       in
-      nixpkgsInput.lib.nixosSystem {
+      nixosSystem {
         specialArgs = {
           inherit inputs hostcfg;
           host = hostname;

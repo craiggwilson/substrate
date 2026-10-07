@@ -55,24 +55,29 @@ let
             pkgs = userPkgs;
           };
         in
-        homeManagerInput.lib.homeManagerConfiguration {
-          pkgs = userPkgs;
-          extraSpecialArgs = extraArgs // {
-            inherit
-              inputs
-              hostcfg
-              userName
-              ;
-            host = hostname;
+        # home-manager inputs may be flakes (with .lib) or pinned source trees.
+        # The fallback imports its lib entry point the same way the upstream
+        # flake does: `import ./lib { lib = nixpkgs.lib; }`.
+        (homeManagerInput.lib or (import "${homeManagerInput}/lib" { lib = userPkgs.lib; }))
+        .homeManagerConfiguration
+          {
+            pkgs = userPkgs;
+            extraSpecialArgs = extraArgs // {
+              inherit
+                inputs
+                hostcfg
+                userName
+                ;
+              host = hostname;
+            };
+            modules =
+              (settings.homeManagerModules or [ ])
+              ++ (slib.findModulesForClass "homeManager" [
+                hostcfg
+                usercfg
+              ])
+              ++ contributedModules;
           };
-          modules =
-            (settings.homeManagerModules or [ ])
-            ++ (slib.findModulesForClass "homeManager" [
-              hostcfg
-              usercfg
-            ])
-            ++ contributedModules;
-        };
     in
     lib.mergeAttrsList (
       lib.mapAttrsToList (
@@ -127,7 +132,10 @@ let
         };
     in
     [
-      homeManagerInput.nixosModules.home-manager
+      # home-manager inputs may be flakes (with .nixosModules.home-manager) or
+      # pinned source trees; the upstream flake's output for this is the path
+      # `./nixos`.
+      (homeManagerInput.nixosModules.home-manager or "${homeManagerInput}/nixos")
       {
         home-manager =
           let

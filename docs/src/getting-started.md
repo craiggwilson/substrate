@@ -35,6 +35,11 @@ Add substrate as a flake input alongside your other dependencies:
 }
 ```
 
+You can also use substrate without flakes. The `raw` builder takes a plain
+`inputs` attrset (flakes or pinned source trees such as npins/niv) and returns
+the same outputs as a plain attrset. See [raw Builder](./builders.md#raw-builder)
+for details.
+
 ## Basic Configuration
 
 A minimal substrate configuration defines users, hosts, and modules:

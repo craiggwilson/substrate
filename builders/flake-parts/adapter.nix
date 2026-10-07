@@ -20,10 +20,6 @@ let
     builderArgs: builders: lib.foldl' (acc: builder: acc // (builder.build builderArgs)) { } builders;
 in
 {
-  imports = [
-    ./checks.nix
-  ];
-
   systems = settings.systems;
 
   # Under flake-parts, each per-system output name becomes a flake output

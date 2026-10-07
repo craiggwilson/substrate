@@ -11,8 +11,8 @@
 # It also exposes the raw pkgs-bound jail.nix callable as `jailLib` for uses the
 # contributor does not cover — most notably `jailLib.mkOverlay` for jailing
 # whole package sets. The `jail-nix` input resolves via the usual precedence:
-# an explicit `jail-nix` arg, `substrate.settings.inputs."jail-nix"`, or a
-# flake input named `jail-nix`.
+# an explicit `jail-nix` arg, `substrate.settings.inputs."jail-nix"`, or an
+# input named `jail-nix` (flake or pinned source).
 args:
 let
   hasModuleArgs = args ? lib && args ? config;
@@ -36,10 +36,11 @@ let
 
       # jail.nix wants its config via lib.extend as an attrset whose only
       # required key is pkgs; basePermissions/additionalCombinators are
-      # optional overrides.
+      # optional overrides. jail-nix inputs may be flakes (with .lib) or pinned
+      # source trees; the upstream flake's lib output is `import ./lib`.
       jailFor =
         pkgs:
-        jailInput.lib.extend (
+        (jailInput.lib or (import "${jailInput}/lib")).extend (
           {
             inherit pkgs;
           }

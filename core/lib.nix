@@ -81,7 +81,7 @@ let
   resolveInput =
     name: inputs:
     settings.inputs.${name} or inputs.${name}
-      or (throw "substrate: no flake input named '${name}'. Either name your input '${name}' or pass it explicitly via substrate.settings.inputs.${name}.");
+      or (throw "substrate: no input named '${name}'. Either name your input '${name}' or pass it explicitly via substrate.settings.inputs.${name}.");
 in
 {
   options.substrate.lib = lib.mkOption {

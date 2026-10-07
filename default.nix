@@ -14,6 +14,7 @@ in
 {
   build = {
     with-flake-parts = wrapBuilder (import ./builders/flake-parts/default.nix);
+    raw = wrapBuilder (import ./builders/raw/default.nix);
   };
   substrateModules = {
     published-modules = import ./extensions/published-modules;

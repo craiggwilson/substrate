@@ -33,7 +33,8 @@ substrate/
 │   ├── types/           # Custom type definitions
 │   └── wrappers/        # Declarative executable wrapping (wrap module arg)
 ├── builders/            # Build system adapters
-│   └── flake-parts/     # flake-parts integration
+│   ├── flake-parts/     # flake-parts integration
+│   └── raw/             # Plain attrset builder (no flake/flake-parts)
 ├── tests/               # Test suite
 │   ├── lib.nix          # Test utilities
 │   ├── core/            # Core module tests
@@ -146,7 +147,8 @@ be passed into host/user modules.
 
 ### Builders
 
-Builders integrate substrate with build systems. Currently only flake-parts is supported. The builder:
+Builders integrate substrate with build systems. flake-parts and a plain
+attrset (`raw`) builder are supported. Each builder:
 1. Evaluates the substrate configuration
 2. Calls registered output builders
 3. Produces the requested outputs

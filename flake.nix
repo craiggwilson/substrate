@@ -44,26 +44,30 @@
             cp ${optionReference} $out/src/reference/options.md
           '';
         in
-        pkgs.runCommand "substrate-docs" {
-          nativeBuildInputs = [
-            pkgs.mdbook
-            pkgs.mdbook-linkcheck2
-            # linkcheck2 builds an HTTP client when it starts, even with --files
-            # naming no file to fetch, and does not survive the unwrap without a
-            # trust store. The build sandbox is what keeps a web link from
-            # actually going out.
-            pkgs.cacert
-          ];
-        } ''
-          mdbook build ${src} -d $out
-          # -f names no file, so no external link is fetched and the check needs
-          # no network. Internal links are checked in every file regardless.
-          mdbook-linkcheck2 --standalone --no-cache --files=__no_web_links__ ${src}
-        '';
+        pkgs.runCommand "substrate-docs"
+          {
+            nativeBuildInputs = [
+              pkgs.mdbook
+              pkgs.mdbook-linkcheck2
+              # linkcheck2 builds an HTTP client when it starts, even with --files
+              # naming no file to fetch, and does not survive the unwrap without a
+              # trust store. The build sandbox is what keeps a web link from
+              # actually going out.
+              pkgs.cacert
+            ];
+          }
+          ''
+            mdbook build ${src} -d $out
+            # -f names no file, so no external link is fetched and the check needs
+            # no network. Internal links are checked in every file regardless.
+            mdbook-linkcheck2 --standalone --no-cache --files=__no_web_links__ ${src}
+          '';
     in
     (import ./.)
     // {
-      packages = forAllSystems (pkgs: { docs = docsBook pkgs; });
+      packages = forAllSystems (pkgs: {
+        docs = docsBook pkgs;
+      });
 
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
@@ -115,6 +119,7 @@
 
           # Builder tests
           builders-checks-test = mkTest "checks-test" ./tests/builders/checks-test.nix;
+          builders-raw-test = mkTestWith "raw-test" { nixpkgsSrc = nixpkgs; } ./tests/builders/raw-test.nix;
 
           # Docs. Not a mkTest: there is no test file, and building the book
           # already fails on a chapter missing from SUMMARY.md or on a broken
