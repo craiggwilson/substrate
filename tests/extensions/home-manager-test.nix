@@ -30,6 +30,17 @@ let
     ../../extensions/home-manager/default.nix
   ];
 
+  # Flake-shaped stubs for inputs the home-manager extension resolves.
+  fakeNixpkgs = pkgs.writeText "fake-nixpkgs" "_: { }" // {
+    inherit (pkgs) lib;
+  };
+
+  fakeHomeManager = {
+    outPath = pkgs.path;
+    lib.homeManagerConfiguration = args: { inherit (args) extraSpecialArgs; };
+    nixosModules.home-manager = { };
+  };
+
   tests = {
     # Test 1: homeManager class is not supported without extension
     homeManagerNotSupportedWithoutExtension = {
@@ -183,7 +194,7 @@ let
           ];
           modules = eval.config.substrate.lib.contributionsFor "nixos" {
             inputs = {
-              home-manager.nixosModules.home-manager = { };
+              home-manager = fakeHomeManager;
             };
             substrate = eval.config.substrate;
             hostname = "testhost";
@@ -234,7 +245,7 @@ let
           ];
           modules = eval.config.substrate.lib.contributionsFor "nixos" {
             inputs = {
-              home-manager.nixosModules.home-manager = { };
+              home-manager = fakeHomeManager;
             };
             substrate = eval.config.substrate;
             hostname = "testhost";
@@ -263,12 +274,8 @@ let
             inputs = {
               # Stub inputs so the builder runs its real code path without
               # evaluating a second nixpkgs or a full home-manager config.
-              nixpkgs = pkgs.writeText "fake-nixpkgs" "_: { }";
-              home-manager = {
-                lib.homeManagerConfiguration = args: {
-                  inherit (args) extraSpecialArgs;
-                };
-              };
+              nixpkgs = fakeNixpkgs;
+              home-manager = fakeHomeManager;
             };
             substrate = eval.config.substrate;
           };
@@ -293,12 +300,8 @@ let
           ];
           configs = (builtins.head eval.config.substrate.outputs.global.homeConfigurations).build {
             inputs = {
-              nixpkgs = pkgs.writeText "fake-nixpkgs" "_: { }";
-              home-manager = {
-                lib.homeManagerConfiguration = args: {
-                  inherit (args) extraSpecialArgs;
-                };
-              };
+              nixpkgs = fakeNixpkgs;
+              home-manager = fakeHomeManager;
             };
             substrate = eval.config.substrate;
           };
@@ -326,12 +329,8 @@ let
           ];
           configs = (builtins.head eval.config.substrate.outputs.global.homeConfigurations).build {
             inputs = {
-              nixpkgs = pkgs.writeText "fake-nixpkgs" "_: { }";
-              home-manager = {
-                lib.homeManagerConfiguration = args: {
-                  inherit (args) extraSpecialArgs;
-                };
-              };
+              nixpkgs = fakeNixpkgs;
+              home-manager = fakeHomeManager;
             };
             substrate = eval.config.substrate;
           };

@@ -36,11 +36,11 @@ let
 
       # jail.nix wants its config via lib.extend as an attrset whose only
       # required key is pkgs; basePermissions/additionalCombinators are
-      # optional overrides. jail-nix inputs may be flakes (with .lib) or pinned
-      # source trees; the upstream flake's lib output is `import ./lib`.
+      # optional overrides. jail-nix inputs are expected to be flake-shaped,
+      # exposing lib on their lib output.
       jailFor =
         pkgs:
-        (jailInput.lib or (import "${jailInput}/lib")).extend (
+        jailInput.lib.extend (
           {
             inherit pkgs;
           }

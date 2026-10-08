@@ -1,6 +1,6 @@
 # Raw builder: produces the same outputs as the flake-parts builder as a plain
 # attrset — no flake, no flake-parts. `inputs` is an attrset keyed by role name;
-# values may be pinned source trees (npins, niv) or flakes.
+# values must be flake-shaped.
 {
   build =
     {
@@ -11,9 +11,10 @@
         let
           nixpkgsInput =
             inputs.nixpkgs
-              or (throw "substrate raw builder: no `inputs.nixpkgs`; pass `lib` explicitly or add a nixpkgs input");
+              or (throw "substrate: raw builder needs inputs.nixpkgs.lib; pass flake-shaped inputs (see docs/src/builders.md for with-inputs) or a lib argument.");
         in
-        nixpkgsInput.lib or (import nixpkgsInput { }).lib
+        nixpkgsInput.lib
+          or (throw "substrate: raw builder needs inputs.nixpkgs.lib; pass flake-shaped inputs (see docs/src/builders.md for with-inputs) or a lib argument.")
       ),
     }:
     module:

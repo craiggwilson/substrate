@@ -250,8 +250,9 @@ substrate.settings = {
   # Which finder to use
   modulesFinder = "all";
 
-  # Flake inputs keyed by role, for when your input names differ
-  # (e.g., inputs.nixpkgs = inputs.pkgs-unstable)
+  # Flake-shaped inputs keyed by role, for when your input names differ
+  # (e.g., inputs.nixpkgs = inputs.pkgs-unstable).
+  # Non-flake sources (npins, niv, ...) must be adapted with with-inputs.
   inputs = { ... };
 
   # Supported module classes (extensions add to this)
@@ -335,7 +336,7 @@ arrives in modules as an argument of the same name, computed per build with
 | `findModulesForClass` | Get modules for a specific class, via the configured finder |
 | `hasClass` | Whether a class name is in `settings.supportedClasses` |
 | `nameFromPath` | Basename of a path with `.nix` stripped (`foo.nix` → `foo`, `foo/` → `foo`) |
-| `resolveInput` | Look up a flake input by role name, honoring `settings.inputs` overrides |
+| `resolveInput` | Look up a flake input by role name, honoring `settings.inputs` overrides. The value must be flake-shaped (outPath + outputs/lib); non-flake sources should be adapted with with-inputs |
 | `unique` | Deduplicate a list |
 
 Extensions add to `substrate.lib` by assigning `config.substrate.lib.<name>`.

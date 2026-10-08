@@ -25,6 +25,7 @@ let
     };
 
   fakeJailNix = {
+    outPath = pkgs.path;
     lib = {
       init = _p: throw "jail extension should call extend, not init";
       extend = args: {

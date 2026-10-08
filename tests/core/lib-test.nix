@@ -382,22 +382,34 @@ let
         let
           eval = evalSubstrate [ ];
           resolveInput = eval.config.substrate.lib.resolveInput;
+          input = {
+            outPath = ./.;
+            lib = "by-name";
+          };
         in
-        (resolveInput "nixpkgs" { nixpkgs = "by-name"; }) == "by-name";
+        (resolveInput "nixpkgs" { nixpkgs = input; }) == input;
     };
 
     # Test 17: settings.inputs overrides win over name lookup
     resolveInputSettingsOverride = {
       check =
         let
+          settingsInput = {
+            outPath = ./.;
+            lib = "from-settings";
+          };
           eval = evalSubstrate [
             {
-              config.substrate.settings.inputs.nixpkgs = "from-settings";
+              config.substrate.settings.inputs.nixpkgs = settingsInput;
             }
           ];
           resolveInput = eval.config.substrate.lib.resolveInput;
+          input = {
+            outPath = ./.;
+            lib = "by-name";
+          };
         in
-        (resolveInput "nixpkgs" { nixpkgs = "by-name"; }) == "from-settings";
+        (resolveInput "nixpkgs" { nixpkgs = input; }) == settingsInput;
     };
 
     # Test 18: resolveInput throws with guidance when no input is found
@@ -407,6 +419,23 @@ let
           eval = evalSubstrate [ ];
           resolveInput = eval.config.substrate.lib.resolveInput;
           result = builtins.tryEval (resolveInput "jail-nix" { });
+        in
+        !result.success;
+    };
+
+    # Test 19: resolveInput throws with guidance for non-flake-shaped inputs
+    resolveInputNonFlakeShapeThrows = {
+      check =
+        let
+          eval = evalSubstrate [ ];
+          resolveInput = eval.config.substrate.lib.resolveInput;
+          result = builtins.tryEval (
+            resolveInput "nixpkgs" {
+              nixpkgs = {
+                outPath = ./.;
+              };
+            }
+          );
         in
         !result.success;
     };

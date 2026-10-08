@@ -36,9 +36,10 @@ Add substrate as a flake input alongside your other dependencies:
 ```
 
 You can also use substrate without flakes. The `raw` builder takes a plain
-`inputs` attrset (flakes or pinned source trees such as npins/niv) and returns
-the same outputs as a plain attrset. See [raw Builder](./builders.md#raw-builder)
-for details.
+`inputs` attrset of flake-shaped inputs. Non-flake sources from pin tools such
+as npins or niv are converted with
+[with-inputs](https://github.com/denful/with-inputs) before being passed to
+substrate. See [raw Builder](./builders.md#raw-builder) for the recipe.
 
 ## Basic Configuration
 

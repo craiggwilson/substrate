@@ -153,19 +153,27 @@ inputs.substrate.build.with-flake-parts { inherit inputs; } {
 
 The `raw` builder produces the same outputs as the flake-parts builder, but as
 a plain attrset with no flake and no flake-parts dependency. Use it when you
-manage inputs with a pin tool such as [npins](https://github.com/xzfc/npins) or
-[niv](https://github.com/nmattia/niv), or when you want to evaluate substrate
-from a non-flake `default.nix`.
+want to evaluate substrate from a non-flake `default.nix`, or when you manage
+inputs with a pin tool such as [npins](https://github.com/xzfc/npins) or
+[niv](https://github.com/nmattia/niv).
+
+Raw `inputs` must be flake-shaped: each value needs `outPath` and at least one
+of `outputs` or `lib`. Non-flake sources from pin tools are adapted with
+[with-inputs](https://github.com/denful/with-inputs) before being passed to
+substrate.
 
 ### Usage
 
 ```nix
 # default.nix with npins
 let
-  sources = import ./npins;
+  sources = import ./npins;   # npins add github denful with-inputs
+  withInputs = import sources.with-inputs;
   substrate = import sources.substrate;
 in
-substrate.build.raw { inputs = sources; } {
+substrate.build.raw {
+  inputs = withInputs sources { } (i: i);
+} {
   imports = [
     substrate.substrateModules.nixos
     substrate.substrateModules.home-manager
@@ -181,9 +189,18 @@ substrate.build.raw { inputs = sources; } {
 ### Input contract
 
 `inputs` is an attrset keyed by role name (`nixpkgs`, `home-manager`,
-`jail-nix`, …). Values may be flakes or pinned source trees. Extensions use
-flake outputs when present and fall back to the equivalent path import
-otherwise, so both shapes work without extra configuration.
+`jail-nix`, …). Values must be flake-shaped inputs: they must have `outPath`
+and at least one of `outputs` or `lib`. Passing a bare pinned source tree
+(a plain path or an attrset without `outputs`/`lib`) now throws from
+`substrate.lib.resolveInput` with guidance pointing to with-inputs and this
+document.
+
+[with-inputs](https://github.com/denful/with-inputs) converts npins, niv,
+lon, and similar sources into flake-shaped inputs, including real flake
+semantics such as `follows` and nested inputs. Because the conversion happens
+once in your pin file, substrate's role-name coupling disappears: pass the
+converted inputs through and extensions resolve them by role without knowing
+where they came from.
 
 ### Output shape
 
@@ -200,15 +217,11 @@ per-system outputs are keyed by system directly under each output name:
 ### System nixpkgs pin
 
 NixOS systems built through the raw builder set `nixpkgs.flake.source` to the
-pinned nixpkgs, exactly as nixpkgs' flake entry point does — so the deployed
+nixpkgs input, exactly as nixpkgs' flake entry point does — so the deployed
 system pins its own nixpkgs in `/etc/nix/registry.json` and NIX_PATH, and
 `<nixpkgs>` on the machine resolves to the nixpkgs the system was built with.
 This adds the nixpkgs source to the system closure; opt out with
 `nixpkgs.flake.source = lib.mkForce null;` in any NixOS module.
-
-One residual difference from flake builds: `system.nixos.version` carries no
-revision suffix (e.g. `26.11pre-git` rather than `26.11.20261005.aa48d34`),
-because a plain source import cannot know its git revision.
 
 ### Non-flake build recipes
 

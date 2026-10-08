@@ -1,23 +1,20 @@
 # Tests for the raw substrate builder
 {
   pkgs ? import <nixpkgs> { },
-  # The nixpkgs source to use as the raw builder's nixpkgs input. Defaults to
-  # <nixpkgs> (a plain path — the pinned-source shape); flake.nix passes its
-  # flake input (the flake shape), so both input shapes get exercised.
-  nixpkgsSrc ? <nixpkgs>,
+  # nixpkgs input passed to the raw builder. flake.nix supplies the real flake
+  # input; the default provides a flake-shaped wrapper around <nixpkgs> so the
+  # tests also work when evaluated directly.
+  nixpkgsSrc ? {
+    outPath = pkgs.path;
+    inherit (pkgs) lib;
+  },
 }:
 let
   testLib = import ../lib.nix { inherit pkgs; };
   inherit (testLib) lib runTests;
 
   substrate = import ../..;
-  mkRaw =
-    module:
-    substrate.build.raw {
-      inputs = {
-        nixpkgs = nixpkgsSrc;
-      };
-    } module;
+  mkRaw = inputs: module: substrate.build.raw { inherit inputs; } module;
 
   oneSystemModule = {
     substrate.settings.systems = [ "x86_64-linux" ];
@@ -27,7 +24,7 @@ runTests "Raw Builder Tests" {
   nixosConfigurationsBuilt = {
     check =
       let
-        result = mkRaw {
+        result = mkRaw { nixpkgs = nixpkgsSrc; } {
           imports = [
             oneSystemModule
             ../../extensions/nixos
@@ -36,17 +33,29 @@ runTests "Raw Builder Tests" {
         };
       in
       result.nixosConfigurations.testhost.config.networking.hostName == "testhost"
-      # Both input shapes pin the nixpkgs the system was built with
-      # (nixpkgs.flake.source), matching what nixpkgs' flake entry point does —
-      # the invariant that makes a flake-pinned and npins-pinned build of the
-      # same nixpkgs revision produce the same system.
       && result.nixosConfigurations.testhost.config.nixpkgs.flake.source != null;
+  };
+
+  barePathInputThrows = {
+    check =
+      let
+        result =
+          builtins.tryEval
+            (mkRaw { nixpkgs = <nixpkgs>; } {
+              imports = [
+                oneSystemModule
+                ../../extensions/nixos
+              ];
+              substrate.hosts.testhost.system = "x86_64-linux";
+            }).nixosConfigurations.testhost.config.networking.hostName;
+      in
+      !result.success;
   };
 
   checksOutputEmitted = {
     check =
       let
-        result = mkRaw oneSystemModule;
+        result = mkRaw { nixpkgs = nixpkgsSrc; } oneSystemModule;
       in
       lib.isDerivation result.checks.x86_64-linux.substrate-config;
   };
@@ -54,7 +63,7 @@ runTests "Raw Builder Tests" {
   inputsReachModules = {
     check =
       let
-        result = mkRaw (
+        result = mkRaw { nixpkgs = nixpkgsSrc; } (
           { inputs, ... }:
           {
             imports = [ oneSystemModule ];
@@ -75,7 +84,7 @@ runTests "Raw Builder Tests" {
   failingCheckThrows = {
     check =
       let
-        result = mkRaw {
+        result = mkRaw { nixpkgs = nixpkgsSrc; } {
           imports = [ oneSystemModule ];
           substrate.settings.checks = [
             {
@@ -93,7 +102,7 @@ runTests "Raw Builder Tests" {
   warningCheckPasses = {
     check =
       let
-        result = mkRaw {
+        result = mkRaw { nixpkgs = nixpkgsSrc; } {
           imports = [ oneSystemModule ];
           substrate.settings.checks = [
             {
