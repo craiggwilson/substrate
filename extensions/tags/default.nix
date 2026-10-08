@@ -44,7 +44,7 @@ let
     else
       let
         newSeen = seen ++ [ tag ];
-        explicitImplied = if normalizedTags ? ${tag} then normalizedTags.${tag} else [ ];
+        explicitImplied = normalizedTags.${tag} or [ ];
         parents = parentPrefixes tag;
         allImplied = slib.unique (explicitImplied ++ parents);
       in
@@ -71,7 +71,7 @@ let
 
   tagsType = lib.types.listOf (lib.types.enum validatedTagNames);
 
-  tagsFromAttrs = attrs: if attrs ? tags then attrs.tags else [ ];
+  tagsFromAttrs = attrs: attrs.tags or [ ];
 
   filterByTags =
     tags: modules:
@@ -167,12 +167,9 @@ in
       modulesFinder = finderName;
 
       extraArgsGenerators = [
-        (
-          args@{ ... }:
-          {
-            hasTag = mkHasTag (computeTags args);
-          }
-        )
+        (args: {
+          hasTag = mkHasTag (computeTags args);
+        })
       ];
 
       checks =
@@ -208,7 +205,7 @@ in
           validateHostTags =
             let
               hostsWithInvalidTags = lib.filterAttrs (
-                name: host:
+                _name: host:
                 let
                   hostTags = host.tags or [ ];
                   invalidTags = lib.filter (t: !(lib.elem t validatedTagNames)) hostTags;
@@ -240,7 +237,7 @@ in
           validateUserTags =
             let
               usersWithInvalidTags = lib.filterAttrs (
-                name: user:
+                _name: user:
                 let
                   userTags = user.tags or [ ];
                   invalidTags = lib.filter (t: !(lib.elem t validatedTagNames)) userTags;

@@ -150,7 +150,7 @@ let
             program =
               ctx: spec: inner:
               let
-                combinators = ctx.combinators;
+                inherit (ctx) combinators;
                 # jail.nix takes permissions as a list or as a function of the
                 # combinator set; resolving it here is what lets the translation
                 # below be appended to it.

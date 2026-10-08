@@ -34,7 +34,7 @@ let
     let
       allUserNames = builtins.attrNames config.substrate.users;
       hostsWithInvalidUsers = lib.filterAttrs (
-        name: host:
+        _name: host:
         let
           invalidUsers = lib.filter (u: !(lib.elem u allUserNames)) (host.users or [ ]);
         in
@@ -105,7 +105,6 @@ in
           { pkgs, substrate, ... }:
           let
             allValidations = substrate.settings.checks;
-            allValid = lib.all (v: v.valid || (v.warn or false)) allValidations;
 
             summary =
               let
@@ -121,19 +120,7 @@ in
                 Warnings: ${toString (lib.length warnings)}
                 Failed: ${toString (lib.length failed)}
 
-                ${lib.concatMapStringsSep "\n" (
-                  v:
-                  let
-                    status =
-                      if v.valid then
-                        "PASS"
-                      else if v.warn or false then
-                        "WARN"
-                      else
-                        "FAIL";
-                  in
-                  "${v.name}: ${v.message}"
-                ) allValidations}
+                ${lib.concatMapStringsSep "\n" (v: "${v.name}: ${v.message}") allValidations}
               '';
 
             evalWarnings =

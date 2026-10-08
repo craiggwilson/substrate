@@ -4,7 +4,7 @@
 # in stubs.nix; extensions add to a wrapper by registering a contributor in
 # substrate.settings.wrappers.contributors (see wrap.nix) and get all of this
 # for free.
-{ lib, pkgs }:
+{ lib, pkgs, ... }:
 let
   # One declarative file entry: text (written to the store), source (an
   # existing path/derivation), or an explicit path (which may be a shell
@@ -163,7 +163,7 @@ let
   # `prefix`/`runtimeInputs`/… hooks in wrap.nix) and none of them is ever
   # rendered by anything but the core.
   coreOptions =
-    { config, ... }:
+    { ... }:
     {
       imports = [
         commonModule
@@ -353,7 +353,7 @@ in
             inherit wrapped;
             override = pkgArgs: rerun { package = wrapped.override pkgArgs; };
           }
-          // (lib.optionalAttrs (cfg.files != { }) { files = cfg.files; });
+          // (lib.optionalAttrs (cfg.files != { }) { inherit (cfg) files; });
       }
     );
 }

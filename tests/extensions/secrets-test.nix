@@ -145,7 +145,7 @@ let
     secretspec = "/fake/secretspec";
     makeWrapper = "/fake/makeWrapper";
     coreutils = "/fake/coreutils";
-    writeShellScript = name: text: "script:${text}";
+    writeShellScript = _name: text: "script:${text}";
     # the in-place backends copy the package tree; the fake stands in for lndir
     # symlinkJoin is how every wrapper is built now, so `body` is the postBuild
     # script: the tests read the build script, not which builder took it.
@@ -207,14 +207,12 @@ let
     options.environment.systemPackages = lib.mkOption { type = lib.types.raw; };
     options.systemd.services = lib.mkOption { type = lib.types.raw; };
     options.systemd.tmpfiles = lib.mkOption {
-      type = lib.types.submodule (
-        { ... }: {
-          options.rules = lib.mkOption {
-            type = lib.types.listOf lib.types.str;
-            default = [ ];
-          };
-        }
-      );
+      type = lib.types.submodule (_: {
+        options.rules = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+        };
+      });
       default = { };
     };
     # project is left to the class module's default, so a test can see that it
@@ -245,14 +243,12 @@ let
     options.home.sessionVariables = lib.mkOption { type = lib.types.raw; };
     options.systemd.user.services = lib.mkOption { type = lib.types.raw; };
     options.systemd.user.tmpfiles = lib.mkOption {
-      type = lib.types.submodule (
-        { ... }: {
-          options.rules = lib.mkOption {
-            type = lib.types.listOf lib.types.str;
-            default = [ ];
-          };
-        }
-      );
+      type = lib.types.submodule (_: {
+        options.rules = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+        };
+      });
       default = { };
     };
     options.systemd.user.startServices = lib.mkOption {
@@ -801,7 +797,7 @@ runTests "Secrets Extension Tests" {
           package = fakePkg;
           secrets.scope = "github";
         };
-        body = drv.body;
+        inherit (drv) body;
       in
       hasInfix ''exec -a "$0" /fake/secretspec/bin/secretspec run'' body
       && hasInfix "--file ${fakeStoreManifest}" body
@@ -827,7 +823,7 @@ runTests "Secrets Extension Tests" {
             "$GREETING"
           ];
         };
-        body = drv.body;
+        inherit (drv) body;
       in
       hasInfix ''-- @out@/bin/.foo-core "$@"'' body
       && hasInfix ''makeWrapper /nix/store/hash-foo-1.0/bin/foo "$out/bin/.foo-core"'' body
@@ -879,7 +875,7 @@ runTests "Secrets Extension Tests" {
           secrets.scope = "github";
           secrets.manifest = "/custom/secretspec.toml";
         };
-        body = drv.body;
+        inherit (drv) body;
       in
       hasInfix "--file /custom/secretspec.toml" body;
   };
@@ -893,7 +889,7 @@ runTests "Secrets Extension Tests" {
           secrets.scope = "github";
           secrets.reason = reason;
         };
-        body = drv.body;
+        inherit (drv) body;
       in
       hasInfix ("--reason " + lib.escapeShellArg reason) body;
   };
@@ -1030,14 +1026,12 @@ runTests "Secrets Extension Tests" {
               options.environment.systemPackages = lib.mkOption { type = lib.types.raw; };
               options.systemd.services = lib.mkOption { type = lib.types.raw; };
               options.systemd.tmpfiles = lib.mkOption {
-                type = lib.types.submodule (
-                  { ... }: {
-                    options.rules = lib.mkOption {
-                      type = lib.types.listOf lib.types.str;
-                      default = [ ];
-                    };
-                  }
-                );
+                type = lib.types.submodule (_: {
+                  options.rules = lib.mkOption {
+                    type = lib.types.listOf lib.types.str;
+                    default = [ ];
+                  };
+                });
                 default = { };
               };
               config.secretspec.entries.BAR = {
@@ -1050,8 +1044,7 @@ runTests "Secrets Extension Tests" {
             pkgs = fakePkgs;
           };
         };
-      in
-      let
+
         svc = (unwrap eval.config.systemd.services).secretspec-materialize or null;
       in
       svc == null || (svc._type or "" == "if" && !svc.condition);
@@ -1276,11 +1269,15 @@ runTests "Secrets Extension Tests" {
   wrapStubDefaultsXdgRootForHostBuild = {
     check =
       let
-        body =
-          (packagesWrapsArgs.wrap {
-            package = fakePkg;
-            secrets.scope = "github";
-          }).body;
+        inherit
+          (
+            (packagesWrapsArgs.wrap {
+              package = fakePkg;
+              secrets.scope = "github";
+            })
+          )
+          body
+          ;
       in
       hasInfix ''if [[ -z "''${HOME:-}" && -z "''${XDG_CONFIG_HOME:-}" ]]; then'' body
       && hasInfix ''export XDG_CONFIG_HOME="/var/lib"'' body
@@ -1293,19 +1290,23 @@ runTests "Secrets Extension Tests" {
   userBuildStubHasNoXdgFallback = {
     check =
       let
-        body =
+        inherit
           (
-            (wrapsArgsFor {
-              substrateEval = packagesWrapsEval;
-              usercfg = {
-                name = "u";
-              };
-            }).wrap
-              {
-                package = fakePkg;
-                secrets.scope = "github";
-              }
-          ).body;
+            (
+              (wrapsArgsFor {
+                substrateEval = packagesWrapsEval;
+                usercfg = {
+                  name = "u";
+                };
+              }).wrap
+                {
+                  package = fakePkg;
+                  secrets.scope = "github";
+                }
+            )
+          )
+          body
+          ;
       in
       !(hasInfix "export XDG_CONFIG_HOME" body) && !(hasInfix "export XDG_STATE_HOME" body);
   };

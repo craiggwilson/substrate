@@ -5,7 +5,7 @@
 }:
 let
   testLib = import ../lib.nix { inherit pkgs; };
-  inherit (testLib) lib mkEvalSubstrate runTests;
+  inherit (testLib) mkEvalSubstrate runTests;
 
   # Hosts/users tests need core modules plus hosts.nix and users.nix
   evalSubstrate = mkEvalSubstrate [

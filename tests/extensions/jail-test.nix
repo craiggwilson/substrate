@@ -26,7 +26,7 @@ let
 
   fakeJailNix = {
     lib = {
-      init = p: throw "jail extension should call extend, not init";
+      init = _p: throw "jail extension should call extend, not init";
       extend = args: {
         pkgsTag = args.pkgs.tag or null;
         basePermissions = args.basePermissions or null;
@@ -38,14 +38,14 @@ let
         combinators = {
           set-env = n: v: "setenv${n}${v}";
           add-pkg-deps = pkgs': "pathdeps${toString (builtins.length pkgs')}";
-          bind-pkg = path: pkg: "bindpath${builtins.replaceStrings [ "/" "." ":" ] [ "_" "_" "_" ] path}";
+          bind-pkg = path: _pkg: "bindpath${builtins.replaceStrings [ "/" "." ":" ] [ "_" "_" "_" ] path}";
           try-fwd-env = n: "fwd${n}";
         };
         # real jail.nix returns a callable: `jail name executable permissions`.
         # The jail is what a bubblewrap wrapper wraps, so it carries what it was
         # asked for in its store path — that is where a test can see it.
         __functor =
-          self: name: exe: perms:
+          _self: name: exe: perms:
           mkFakeDrv {
             jailName = name;
             executable = toString exe;
@@ -66,9 +66,9 @@ let
     tag = "host-pkgs";
     makeWrapper = "/fake/makeWrapper";
     makeBinaryWrapper = "/fake/makeBinaryWrapper";
-    writeShellScriptBin = name: text: "drv:${name}";
-    writeShellScript = name: text: "script:${text}";
-    writeText = name: text: "text:${name}";
+    writeShellScriptBin = name: _text: "drv:${name}";
+    writeShellScript = _name: text: "script:${text}";
+    writeText = name: _text: "text:${name}";
     # symlinkJoin is how every wrapper is built now, so `body` is the postBuild
     # script: the tests read the build script, not which builder took it.
     symlinkJoin = a: mkFakeDrv (a // { body = a.postBuild or ""; });
@@ -184,7 +184,7 @@ let
     };
     usercfg = null;
     inputs = { };
-    pkgs = pkgs;
+    inherit pkgs;
   };
   realWrap =
     spec:
@@ -192,7 +192,7 @@ let
       eval = realEval;
       inherit spec;
       context = {
-        pkgs = pkgs;
+        inherit pkgs;
         inputs = {
           jail-nix = jailNix;
         };
@@ -218,8 +218,8 @@ runTests "Jail Extension Tests" {
           jailModules
           ++ [
             {
-              config.substrate.settings.jail.basePermissions = c: [ "base" ];
-              config.substrate.settings.jail.additionalCombinators = c: {
+              config.substrate.settings.jail.basePermissions = _c: [ "base" ];
+              config.substrate.settings.jail.additionalCombinators = _c: {
                 mine = "x";
               };
             }
@@ -244,12 +244,10 @@ runTests "Jail Extension Tests" {
   bubblewrapContributesTheProgram = {
     check =
       let
-        drv = (
-          wrapsArgs.wrap {
-            package = fakeDrv;
-            bubblewrap.permissions = [ "net" ];
-          }
-        );
+        drv = wrapsArgs.wrap {
+          package = fakeDrv;
+          bubblewrap.permissions = [ "net" ];
+        };
       in
       # The jail is what the wrapper runs, not the package: with nothing for a
       # core to carry, the stub execs the jail directly.
@@ -263,16 +261,14 @@ runTests "Jail Extension Tests" {
   bubblewrapCustomName = {
     check =
       let
-        drv = (
-          wrapsArgs.wrap {
-            package = fakeDrv;
-            name = "browser";
-            bubblewrap.permissions = [
-              "gpu"
-              "net"
-            ];
-          }
-        );
+        drv = wrapsArgs.wrap {
+          package = fakeDrv;
+          name = "browser";
+          bubblewrap.permissions = [
+            "gpu"
+            "net"
+          ];
+        };
       in
       # `name` renames the wrapper, and the jail is named after it.
       # `name` renames the wrapper's own executable; the jail is named after it,
@@ -287,7 +283,7 @@ runTests "Jail Extension Tests" {
       hasInfix "/nix/store/hash-jail-foo-isolated-fn/bin/foo-isolated"
         (wrapsArgs.wrap {
           package = fakeDrv;
-          bubblewrap.permissions = c: [ "fn" ];
+          bubblewrap.permissions = _c: [ "fn" ];
         }).body;
   };
 
@@ -316,14 +312,12 @@ runTests "Jail Extension Tests" {
   bubblewrapTranslatesTheCoreVocabulary = {
     check =
       let
-        drv = (
-          wrapsArgs.wrap {
-            package = fakeDrv;
-            env.GREET = "hi";
-            runtimeInputs = [ fakeOpPkg ];
-            bubblewrap.permissions = [ ];
-          }
-        );
+        drv = wrapsArgs.wrap {
+          package = fakeDrv;
+          env.GREET = "hi";
+          runtimeInputs = [ fakeOpPkg ];
+          bubblewrap.permissions = [ ];
+        };
       in
       hasInfix "setenvGREEThi" drv.body && hasInfix "pathdeps1" drv.body;
   };
@@ -345,14 +339,12 @@ runTests "Jail Extension Tests" {
   bubblewrapForwardsAdvertisedEnvNames = {
     check =
       let
-        drv = (
-          forwarderArgs.wrap {
-            package = fakeDrv;
-            env.GREET = "hi";
-            token = { };
-            bubblewrap.permissions = [ ];
-          }
-        );
+        drv = forwarderArgs.wrap {
+          package = fakeDrv;
+          env.GREET = "hi";
+          token = { };
+          bubblewrap.permissions = [ ];
+        };
       in
       hasInfix "fwdTOKEN" drv.body
       # the wrapper's own env is set literally instead, so forwarding it is moot

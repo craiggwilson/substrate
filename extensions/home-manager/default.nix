@@ -58,7 +58,7 @@ let
         # home-manager inputs may be flakes (with .lib) or pinned source trees.
         # The fallback imports its lib entry point the same way the upstream
         # flake does: `import ./lib { lib = nixpkgs.lib; }`.
-        (homeManagerInput.lib or (import "${homeManagerInput}/lib" { lib = userPkgs.lib; }))
+        (homeManagerInput.lib or (import "${homeManagerInput}/lib" { inherit (userPkgs) lib; }))
         .homeManagerConfiguration
           {
             pkgs = userPkgs;
@@ -149,7 +149,7 @@ let
               # Extra args for home-manager modules (e.g., hasTag from tags extension).
               # userName matches the host-integration users map key, mirroring the
               # module argument host-scoped configs receive.
-              _module.args = (
+              _module.args =
                 slib.extraArgsGenerator {
                   inherit
                     hostcfg
@@ -160,8 +160,7 @@ let
                 }
                 // {
                   userName = usercfg.name;
-                }
-              );
+                };
             };
           in
           {
@@ -175,7 +174,7 @@ let
             sharedModules = settings.homeManagerModules or [ ];
             users = lib.listToAttrs (
               lib.map (usercfg: {
-                name = usercfg.name;
+                inherit (usercfg) name;
                 value = mkHomeManagerUserModule hostcfg usercfg;
               }) userConfigs
             );

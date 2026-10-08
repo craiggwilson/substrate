@@ -4,7 +4,7 @@
   pkgs ? import <nixpkgs> { },
 }:
 let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 
   # Helper to run a test and return result
   runTest =

@@ -65,14 +65,17 @@
             # no network. Internal links are checked in every file regardless.
             mdbook-linkcheck2 --standalone --no-cache --files=__no_web_links__ ${src}
           '';
-      # Formatter for `nix fmt` and the fmt check below. nixfmt only: deadnix
-      # and statix were tried and dropped — their "fix" modes rewrite code
-      # (removing unused lambda parameters), which changes semantics.
+      # Formatter/linters for `nix fmt` and the fmt check below. deadnix and
+      # statix run in fix mode; their edits are semantics-preserving except
+      # unused-lambda-pattern removal, which is handled by writing lambdas
+      # whose callers pass extra args with `...` (see tests/core/outputs-test.nix).
       treefmt =
         system:
         treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} {
           projectRootFile = "flake.nix";
           programs.nixfmt.enable = true;
+          programs.deadnix.enable = true;
+          programs.statix.enable = true;
         };
     in
     (import ./.)

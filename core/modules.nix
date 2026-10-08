@@ -26,9 +26,7 @@ let
     module:
     let
       childAttrs = lib.filterAttrs (n: v: (!builtins.elem n reservedNames) && builtins.isAttrs v) module;
-      childModules = lib.flatten (
-        lib.mapAttrsToList (_: child: collectSubstrateModules child) childAttrs
-      );
+      childModules = lib.flatten (lib.mapAttrsToList (_: collectSubstrateModules) childAttrs);
     in
     if hasSubstrateContent module then [ module ] ++ childModules else childModules;
 in

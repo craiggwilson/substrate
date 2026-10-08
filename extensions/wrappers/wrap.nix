@@ -172,25 +172,25 @@ let
       # A contributor participates when its key appears in the spec.
       selected = builtins.filter (n: builtins.hasAttr n spec) (builtins.attrNames contributors);
 
-      cfg = common.checkAssertions (
-        (lib.evalModules {
-          class = "wrap";
-          modules = [
-            common.coreOptions
-          ]
-          ++ map contributorOptions (builtins.attrNames contributors)
-          ++ [
-            spec
-          ];
-          specialArgs = {
-            inherit
-              pkgs
-              lib
-              wrapLib
-              ;
-          };
-        }).config
-      );
+      cfg =
+        common.checkAssertions
+          (lib.evalModules {
+            class = "wrap";
+            modules = [
+              common.coreOptions
+            ]
+            ++ map contributorOptions (builtins.attrNames contributors)
+            ++ [
+              spec
+            ];
+            specialArgs = {
+              inherit
+                pkgs
+                lib
+                wrapLib
+                ;
+            };
+          }).config;
 
       resolved = common.resolveSpec cfg;
 
@@ -218,7 +218,7 @@ let
         in
         {
           inherit name;
-          priority = c.priority;
+          inherit (c) priority;
           incompatible = c.incompatible or [ ];
           prefixes = if c ? prefix then c.prefix ctx resolved else [ ];
           runtimeInputs = if c ? runtimeInputs then c.runtimeInputs ctx resolved else [ ];

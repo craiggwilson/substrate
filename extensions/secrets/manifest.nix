@@ -127,7 +127,7 @@ let
       p.uri
     else
       {
-        uri = p.uri;
+        inherit (p) uri;
         credentials = lib.mapAttrs (_: credentialDecl alias) (p.credentials or { });
       };
 
@@ -241,7 +241,7 @@ let
   manifestFile =
     pkgs: cfg:
     pkgs.writeText nixosEtcKey (render {
-      project = cfg.project;
+      inherit (cfg) project;
       inherit (cfg)
         entries
         providers
@@ -259,10 +259,10 @@ in
   # Where each class's generated manifest lives at runtime. The NixOS path is
   # fixed (systemd wrappers pass it via --file); the Home Manager path is
   # relative to config.xdg.configHome and exported as $SECRETSPEC_FILE.
-  checkConflict = checkConflict;
+  inherit checkConflict;
 
   paths = {
-    nixosEtcKey = nixosEtcKey;
+    inherit nixosEtcKey;
     nixosManifest = "/etc/${nixosEtcKey}";
     homeManagerManifest = homeManagerRel;
     # Shell-expandable form of the Home Manager manifest location, for

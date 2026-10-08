@@ -30,19 +30,19 @@ in
   config.substrate.outputs.global = {
     nixosModules = lib.mkIf hasNixos [
       {
-        build = { ... }: publish.nixosModules;
+        build = _: publish.nixosModules;
       }
     ];
 
     homeManagerModules = lib.mkIf hasHomeManager [
       {
-        build = { ... }: publish.homeManagerModules;
+        build = _: publish.homeManagerModules;
       }
     ];
 
     substrateModules = lib.mkIf hasSubstrate [
       {
-        build = { ... }: publish.substrateModules;
+        build = _: publish.substrateModules;
       }
     ];
   };

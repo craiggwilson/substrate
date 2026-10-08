@@ -26,7 +26,7 @@ let
         acc: hostcfg:
         let
           key = {
-            system = hostcfg.system;
+            inherit (hostcfg) system;
             config = pkgsConfigFor hostcfg;
           };
         in
@@ -51,7 +51,7 @@ let
           lib.filter (
             i:
             i.key == {
-              system = hostcfg.system;
+              inherit (hostcfg) system;
               config = pkgsConfigFor hostcfg;
             }
           ) pkgsInstances
@@ -64,7 +64,7 @@ let
 
         mkNixosUser = usercfg: {
           isNormalUser = lib.mkDefault true;
-          name = usercfg.name;
+          inherit (usercfg) name;
           group = lib.mkDefault "users";
         };
 
@@ -75,7 +75,7 @@ let
               usercfg = substrate.users.${user};
             in
             {
-              name = usercfg.name;
+              inherit (usercfg) name;
               value = mkNixosUser usercfg;
             }
           ) hostcfg.users
@@ -119,7 +119,7 @@ let
             import "${nixpkgsInput}/nixos/lib/eval-config.nix" {
               modules = modules ++ [ { nixpkgs.flake.source = nixpkgsInput; } ];
               inherit specialArgs;
-              lib = hostPkgs.lib;
+              inherit (hostPkgs) lib;
               system = null;
             }
           );

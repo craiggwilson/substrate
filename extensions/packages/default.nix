@@ -59,11 +59,9 @@ in
     outputs = {
       global.overlays = [
         {
-          build =
-            { ... }:
-            {
-              packages = packagesOverlay;
-            };
+          build = _: {
+            packages = packagesOverlay;
+          };
         }
       ];
 

@@ -37,7 +37,9 @@ runTests "Outputs Tests" {
             global.nixosConfigurations = [
               {
                 build =
-                  { inputs, substrate }:
+                  # `substrate` is accepted (and ignored) on purpose: the test
+                  # passes it to assert builders tolerate extra builder args.
+                  { inputs, ... }:
                   {
                     inherited = inputs;
                   };
@@ -46,7 +48,7 @@ runTests "Outputs Tests" {
             perSystem.packages = [
               {
                 build =
-                  { pkgs, system, ... }:
+                  { system, ... }:
                   {
                     hello = system;
                   };

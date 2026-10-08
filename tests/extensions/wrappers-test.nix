@@ -43,8 +43,8 @@ let
     secretspec = "/fake/secretspec";
     makeWrapper = "/fake/makeWrapper";
     makeBinaryWrapper = "/fake/makeBinaryWrapper";
-    writeShellScript = name: text: "script:${text}";
-    writeText = name: text: "text:${name}";
+    writeShellScript = _name: text: "script:${text}";
+    writeText = name: _text: "text:${name}";
     # symlinkJoin is how every wrapper is built now, so `body` is the postBuild
     # script: the tests read the build script, not which builder took it.
     symlinkJoin = a: mkFakeDrv (a // { body = a.postBuild or ""; });
@@ -86,7 +86,6 @@ let
   opFake = mkFakeDrv { outPath = "/nix/store/hash-op-2.32.0"; };
 
   throws = expr: !(builtins.tryEval (builtins.deepSeq expr expr)).success;
-  joinLines = builtins.concatStringsSep "\n";
 
   # The stub text of a standalone wrapper, as the build embeds it.
   stubText =
@@ -139,14 +138,12 @@ let
       default = { };
     };
     options.systemd.tmpfiles = lib.mkOption {
-      type = lib.types.submodule (
-        { ... }: {
-          options.rules = lib.mkOption {
-            type = lib.types.listOf lib.types.str;
-            default = [ ];
-          };
-        }
-      );
+      type = lib.types.submodule (_: {
+        options.rules = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+        };
+      });
       default = { };
     };
     config.secretspec = {
@@ -766,21 +763,17 @@ runTests "Wrappers Extension Tests" {
           package = fakePkg;
           eggy.treat = "cup";
         };
-        withSecret = (
-          secretArgs.wrap {
-            package = fakePkg;
-            eggy.treat = "cup";
-            secrets.scope = "github";
-          }
-        );
-        withSecretAndEnv = (
-          secretArgs.wrap {
-            package = fakePkg;
-            env.A = "1";
-            eggy.treat = "cup";
-            secrets.scope = "github";
-          }
-        );
+        withSecret = secretArgs.wrap {
+          package = fakePkg;
+          eggy.treat = "cup";
+          secrets.scope = "github";
+        };
+        withSecretAndEnv = secretArgs.wrap {
+          package = fakePkg;
+          env.A = "1";
+          eggy.treat = "cup";
+          secrets.scope = "github";
+        };
       in
       # Only the core advertises names, and only the spec sets them: secrets names
       # no variables, because a scope's are declared where they are forwarded.

@@ -10,7 +10,7 @@
   pkgs,
 }:
 let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 
   testLib = import ../../tests/lib.nix { inherit pkgs; };
 

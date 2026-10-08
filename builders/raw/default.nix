@@ -23,8 +23,8 @@
         specialArgs = { inherit inputs; };
       };
       substrate = eval.config.substrate;
-      settings = substrate.settings;
-      outputs = substrate.outputs;
+      inherit (substrate) settings;
+      inherit (substrate) outputs;
       slib = substrate.lib;
 
       nixpkgsInput = slib.resolveInput "nixpkgs" inputs;
@@ -37,7 +37,7 @@
         _: builders:
         buildAndMerge {
           inherit inputs;
-          substrate = substrate;
+          inherit substrate;
         } builders
       ) outputs.global;
 
@@ -54,7 +54,7 @@
           in
           buildAndMerge {
             inherit pkgs system inputs;
-            substrate = substrate;
+            inherit substrate;
           } builders
         )
       ) outputs.perSystem;

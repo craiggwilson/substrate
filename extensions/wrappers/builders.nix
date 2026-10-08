@@ -14,11 +14,11 @@
   pkgs,
   common,
   render,
+  ...
 }:
 let
   inherit (common)
     aliasLinks
-    binNameOf
     fileLinks
     programPath
     ;
@@ -80,7 +80,7 @@ let
   buildBinary =
     spec:
     let
-      binName = spec.binName;
+      inherit (spec) binName;
       flags = render.binaryFlags spec;
     in
     pkgs.symlinkJoin {
@@ -105,7 +105,7 @@ let
   buildWrap =
     spec:
     let
-      binName = spec.binName;
+      inherit (spec) binName;
       # Spec's own runtimeInputs first: they are what the program needs, and a
       # contributor's PATH entries are additions for its own chain.
       pathEnv = lib.makeBinPath (spec.runtimeInputs ++ spec.extraRuntimeInputs);

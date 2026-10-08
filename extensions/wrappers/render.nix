@@ -17,16 +17,14 @@
 # asserted directly rather than by reading a built derivation.
 {
   lib,
-  pkgs,
   common,
+  # `...` so callers may pass args this file does not use (deadnix strips
+  # unused parameters; the ellipsis keeps the explicit callsites valid).
+  ...
 }:
 let
   inherit (common)
-    aliasLinks
-    binNameOf
     envExportLines
-    fileLinks
-    isSet
     programPath
     ;
 
@@ -99,7 +97,7 @@ let
   toOuter =
     spec: pathEnv:
     let
-      binName = spec.binName;
+      inherit (spec) binName;
       # The program the chain runs: the core when one exists, so the core's flags
       # land on it, and the program itself when nothing needs carrying.
       target = if needsCore spec then "@out@/bin/.${binName}-core" else programPath spec spec.program;

@@ -20,7 +20,7 @@ let
     builderArgs: builders: lib.foldl' (acc: builder: acc // (builder.build builderArgs)) { } builders;
 in
 {
-  systems = settings.systems;
+  inherit (settings) systems;
 
   # Under flake-parts, each per-system output name becomes a flake output
   perSystem =
@@ -33,7 +33,7 @@ in
       };
       builderArgs = {
         inherit pkgs system inputs;
-        substrate = config.substrate;
+        inherit (config) substrate;
       };
     in
     lib.mapAttrs (_: builders: buildAndMerge builderArgs builders) outputs.perSystem;
@@ -43,7 +43,7 @@ in
     let
       builderArgs = {
         inherit inputs;
-        substrate = config.substrate;
+        inherit (config) substrate;
       };
     in
     lib.mapAttrs (_: builders: buildAndMerge builderArgs builders) outputs.global;

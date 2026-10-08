@@ -24,7 +24,7 @@ let
           eval = evalSubstrate [
             {
               config.substrate.settings.overlays = [
-                (final: prev: { testPkg = null; })
+                (_final: _prev: { testPkg = null; })
               ];
             }
           ];
@@ -37,8 +37,8 @@ let
       check =
         let
           eval = evalSubstrate [
-            { config.substrate.settings.overlays = [ (final: prev: { }) ]; }
-            { config.substrate.settings.overlays = [ (final: prev: { }) ]; }
+            { config.substrate.settings.overlays = [ (_final: _prev: { }) ]; }
+            { config.substrate.settings.overlays = [ (_final: _prev: { }) ]; }
           ];
         in
         lib.length eval.config.substrate.settings.overlays == 2;
@@ -51,7 +51,7 @@ let
           eval = evalSubstrate [
             {
               config.substrate.settings.overlays = [
-                (final: prev: { test = true; })
+                (_final: _prev: { test = true; })
               ];
             }
           ];
@@ -90,8 +90,8 @@ let
           eval = evalSubstrate [
             {
               config.substrate.settings.overlays = [
-                (final: prev: { a = 1; })
-                (final: prev: { b = 2; })
+                (_final: _prev: { a = 1; })
+                (_final: _prev: { b = 2; })
               ];
             }
           ];
