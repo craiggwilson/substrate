@@ -14,12 +14,12 @@ let
 
   testLib = import ../../tests/lib.nix { inherit pkgs; };
 
-  # Extensions that take their flake inputs as module arguments (the jail
-  # extension does) need `inputs` bound. Stubs are enough: nothing in the
+  # Extensions that take their flake inputs as module arguments (the
+  # bubblewrap extension does) need `inputs` bound. Stubs are enough: nothing in the
   # option tree forces an input, so a real flake would only slow this down.
   extensionNames = [
     "home-manager"
-    "jail"
+    "bubblewrap"
     "nixos"
     "overlays"
     "packages"

@@ -1,4 +1,4 @@
-# Jail Extension
+# Bubblewrap Extension
 
 Adds bubblewrap isolation via
 [jail.nix](https://git.sr.ht/~alexdavid/jail.nix), primarily as the
@@ -9,27 +9,27 @@ contributor does not cover, such as `jailLib.mkOverlay`.
 ### Import
 
 ```nix
-imports = [ inputs.substrate.substrateModules.jail ];
+imports = [ inputs.substrate.substrateModules.bubblewrap ];
 ```
 
 Requires a `jail-nix` input — resolved in this order: an explicit `jail-nix`
 module argument, then substrate's locked default. Override the default with
 `inputs.substrate.inputs.jail-nix.follows = "<name>"`. The `bubblewrap`
-contributor additionally requires the `wrappers` extension; without it jail is
-available only through `jailLib`.
+contributor additionally requires the `wrappers` extension; without it the
+bubblewrap contributor is unavailable, but `jailLib` is still provided.
 
 ### Options
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `substrate.settings.jail.basePermissions` | function or null | Base permissions all jails inherit |
-| `substrate.settings.jail.additionalCombinators` | function or null | Custom combinators exposed to jail definitions |
+| `substrate.settings.bubblewrap.basePermissions` | function or null | Base permissions all jails inherit |
+| `substrate.settings.bubblewrap.additionalCombinators` | function or null | Custom combinators exposed to jail definitions |
 
 ### Wrapping in a jail
 
-With the `wrappers` extension loaded, jail registers the `bubblewrap`
-contributor. Its `permissions` go straight to jail.nix — either a list of
-combinators or a function receiving them:
+With the `wrappers` extension loaded, the bubblewrap extension registers the
+`bubblewrap` contributor. Its `permissions` go straight to jail.nix — either a
+list of combinators or a function receiving them:
 
 ```nix
 { pkgs, wrap, ... }:

@@ -1,4 +1,4 @@
-# Jail extension: bubblewrap isolation via jail.nix.
+# Bubblewrap extension: bubblewrap isolation via jail.nix.
 #
 # Contributes isolation to wrapping (see the wrappers extension), so isolated
 # programs compose with the rest of the wrap API:
@@ -29,7 +29,7 @@ let
       ...
     }:
     let
-      cfg = config.substrate.settings.jail;
+      cfg = config.substrate.settings.bubblewrap;
 
       jailInput =
         if jail-nix != null then jail-nix else config.substrate.lib.resolveInput "jail-nix" coreInputs;
@@ -53,7 +53,7 @@ let
         );
     in
     {
-      options.substrate.settings.jail = {
+      options.substrate.settings.bubblewrap = {
         basePermissions = lib.mkOption {
           type = lib.types.nullOr (lib.types.functionTo (lib.types.listOf lib.types.anything));
           description = ''

@@ -18,7 +18,7 @@
 - [Published Modules](extensions/published-modules.md)
 - [Shells](extensions/shells.md)
 - [Secrets](extensions/secrets.md)
-- [Jail](extensions/jail.md)
+- [Bubblewrap](extensions/bubblewrap.md)
 - [Wrappers](extensions/wrappers.md)
 - [Types](extensions/types.md)
 - [Writing an Extension](extensions/writing.md)

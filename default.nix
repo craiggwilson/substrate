@@ -17,12 +17,12 @@ in
     raw = wrapBuilder (import ./builders/raw/default.nix);
   };
   substrateModules = {
-    published-modules = import ./extensions/published-modules;
+    bubblewrap = import ./extensions/bubblewrap;
     home-manager = import ./extensions/home-manager;
-    jail = import ./extensions/jail;
     nixos = import ./extensions/nixos;
     overlays = import ./extensions/overlays;
     packages = import ./extensions/packages;
+    published-modules = import ./extensions/published-modules;
     secrets = import ./extensions/secrets;
     shells = import ./extensions/shells;
     tags = import ./extensions/tags;

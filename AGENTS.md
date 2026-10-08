@@ -89,7 +89,7 @@ Extensions add capabilities by:
    - `substrate.settings.extraArgsGenerators` for an argument built from build
      context alone: each returned key becomes a module argument, and generators
      receive `{ hostcfg, usercfg, inputs, pkgs }`, so helpers can be returned
-     already bound to `pkgs` (e.g., the jail extension provides `jailLib`).
+     already bound to `pkgs` (e.g., the bubblewrap extension provides `jailLib`).
    - A class module writing `_module.args` for an argument that needs the
      configuration it belongs to. A generator runs in the builder, *outside* the
      configuration being built, so there is no `config` there to name; nixpkgs

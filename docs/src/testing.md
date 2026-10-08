@@ -37,7 +37,7 @@ tests/
 ├── extensions/                # Extension tests
 │   ├── tags-test.nix
 │   ├── home-manager-test.nix
-│   ├── jail-test.nix
+│   ├── bubblewrap-test.nix
 │   ├── secrets-test.nix
 │   └── wrappers-test.nix
 └── builders/                  # Builder tests
@@ -265,7 +265,7 @@ checks = forAllSystems (
   {
     # Existing tests
     core-modules-test = mkTest "modules-test" ./tests/core/modules-test.nix;
-    extensions-jail-test = mkTestWith "jail-test" { jailNix = jail-nix; } ./tests/extensions/jail-test.nix;
+    extensions-bubblewrap-test = mkTestWith "bubblewrap-test" { jailNix = jail-nix; } ./tests/extensions/bubblewrap-test.nix;
 
     # Add your new test
     my-new-test = mkTest "my-new-test" ./tests/core/my-new-test.nix;

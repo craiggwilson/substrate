@@ -15,7 +15,7 @@ Extensions add capabilities to substrate. Import only what you need.
 | `secrets` | `substrateModules.secrets` | Declarative secrets via SecretSpec |
 | `wrappers` | `substrateModules.wrappers` | Declarative executable wrapping (`wrap` module argument) |
 | `shells` | `substrateModules.shells` | Development shells |
-| `jail` | `substrateModules.jail` | Jail/container support |
+| `bubblewrap` | `substrateModules.bubblewrap` | Bubblewrap isolation via jail.nix |
 | `types` | `substrateModules.types` | Custom type definitions |
 
 ## Composition Hooks

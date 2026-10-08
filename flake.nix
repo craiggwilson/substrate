@@ -4,7 +4,7 @@
   # locked inputs via inputs.substrate.inputs.home-manager.follows or .url.
   inputs.home-manager.url = "github:nix-community/home-manager";
   inputs.home-manager.inputs.nixpkgs.follows = "nixpkgs";
-  # Default dependency for the jail extension. Consumers rewire substrate's locked
+  # Default dependency for the bubblewrap extension. Consumers rewire substrate's locked
   # inputs via inputs.substrate.inputs.jail-nix.follows or .url.
   inputs.jail-nix.url = "sourcehut:~alexdavid/jail.nix";
   # Formatter/linter for `nix fmt` and the fmt check below.
@@ -152,9 +152,9 @@
           # Extension tests
           extensions-tags-test = mkTest "tags-test" ./tests/extensions/tags-test.nix;
           extensions-home-manager-test = mkTest "home-manager-test" ./tests/extensions/home-manager-test.nix;
-          extensions-jail-test = mkTestWith "jail-test" {
+          extensions-bubblewrap-test = mkTestWith "bubblewrap-test" {
             jailNix = jail-nix;
-          } ./tests/extensions/jail-test.nix;
+          } ./tests/extensions/bubblewrap-test.nix;
           extensions-secrets-test = mkTest "secrets-test" ./tests/extensions/secrets-test.nix;
           extensions-wrappers-test = mkTest "wrappers-test" ./tests/extensions/wrappers-test.nix;
 

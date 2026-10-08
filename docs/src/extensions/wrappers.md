@@ -215,7 +215,7 @@ options. No contributor may ignore a field: it either renders it, or declares it
 The core vocabulary has nothing in it that a contributor has to re-derive: the
 secrets extension turns `scope` into an exec-chain prefix, renders the manifest
 from the configuration it is built for, and puts the provider CLIs on `PATH`; the
-jail extension replaces the program with a jail launcher and translates
+bubblewrap extension replaces the program with a jail launcher and translates
 `env`/`runtimeInputs`/`files` into jail permissions, because a jail cannot see
 the wrapper's own tree.
 

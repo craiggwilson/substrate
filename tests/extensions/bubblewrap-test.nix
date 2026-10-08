@@ -1,4 +1,4 @@
-# Tests for substrate jail extension
+# Tests for substrate bubblewrap extension
 {
   pkgs ? import <nixpkgs> { },
   jailNix ? null,
@@ -27,7 +27,7 @@ let
   fakeJailNix = {
     outPath = pkgs.path;
     lib = {
-      init = _p: throw "jail extension should call extend, not init";
+      init = _p: throw "bubblewrap extension should call extend, not init";
       extend = args: {
         pkgsTag = args.pkgs.tag or null;
         basePermissions = args.basePermissions or null;
@@ -105,9 +105,9 @@ let
       };
     };
 
-  jailModules = [ ../../extensions/jail/default.nix ];
+  bubblewrapModules = [ ../../extensions/bubblewrap/default.nix ];
 
-  eval = evalWith jailModules;
+  eval = evalWith bubblewrapModules;
 
   moduleArgs =
     e:
@@ -120,7 +120,7 @@ let
       pkgs = fakePkgs;
     };
 
-  wrapsEval = evalWith (jailModules ++ [ ../../extensions/wrappers/default.nix ]);
+  wrapsEval = evalWith (bubblewrapModules ++ [ ../../extensions/wrappers/default.nix ]);
 
   # `wrap` reaches a target configuration through a class module, so it is
   # exercised the way a module of that configuration uses it rather than through
@@ -149,7 +149,7 @@ let
       spec:
       testLib.classWrap {
         eval = evalWith (
-          jailModules
+          bubblewrapModules
           ++ [
             ../../extensions/wrappers/default.nix
             {
@@ -177,7 +177,7 @@ let
   realTest = check: jailNix == null || !isLinux || check;
 
   realEval = lib.evalModules {
-    modules = testLib.coreModules ++ jailModules ++ [ ../../extensions/wrappers/default.nix ];
+    modules = testLib.coreModules ++ bubblewrapModules ++ [ ../../extensions/wrappers/default.nix ];
     specialArgs = {
       inputs = { };
       coreInputs = {
@@ -210,7 +210,7 @@ let
 
   throws = expr: !(builtins.tryEval (builtins.deepSeq expr expr)).success;
 in
-runTests "Jail Extension Tests" {
+runTests "Bubblewrap Extension Tests" {
   # jailLib extraArg: pkgs-bound jail.nix callable
   jailLibIsPkgsBound = {
     check = (moduleArgs eval).jailLib.pkgsTag == "host-pkgs";
@@ -224,11 +224,11 @@ runTests "Jail Extension Tests" {
     check =
       let
         e = evalWith (
-          jailModules
+          bubblewrapModules
           ++ [
             {
-              config.substrate.settings.jail.basePermissions = _c: [ "base" ];
-              config.substrate.settings.jail.additionalCombinators = _c: {
+              config.substrate.settings.bubblewrap.basePermissions = _c: [ "base" ];
+              config.substrate.settings.bubblewrap.additionalCombinators = _c: {
                 mine = "x";
               };
             }
@@ -239,8 +239,8 @@ runTests "Jail Extension Tests" {
       lib_.basePermissions != null && lib_.additionalCombinators != null;
   };
 
-  # without the wrappers extension, no backend option exists and jail still loads
-  jailWorksWithoutWrappers = {
+  # without the wrappers extension, no backend option exists and bubblewrap still loads
+  bubblewrapWorksWithoutWrappers = {
     check = !(eval.config.substrate.settings ? wrappers);
   };
 
