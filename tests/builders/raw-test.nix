@@ -166,4 +166,37 @@ runTests "Raw Builder Tests" {
       in
       lib.isDerivation result.checks.x86_64-linux.substrate-config;
   };
+
+  devenvShellsBuilt = {
+    check =
+      let
+        fakeDevenv = {
+          outPath = pkgs.path;
+          lib.mkShell = args: {
+            shellMarker = "mkShell";
+            inherit (args) modules;
+          };
+        };
+
+        result =
+          mkRawWithCoreInputs { }
+            {
+              nixpkgs = nixpkgsSrc;
+              devenv = fakeDevenv;
+            }
+            {
+              imports = [
+                oneSystemModule
+                ../../extensions/devenv
+              ];
+
+              substrate.devenv.shells.default = {
+                packages = [ pkgs.hello ];
+                enterShell = "echo hello";
+              };
+            };
+      in
+      result.devShells.x86_64-linux.default.shellMarker == "mkShell"
+      && builtins.length result.devShells.x86_64-linux.default.modules == 1;
+  };
 }

@@ -18,8 +18,9 @@ let
   # bubblewrap extension does) need `inputs` bound. Stubs are enough: nothing in the
   # option tree forces an input, so a real flake would only slow this down.
   extensionNames = [
-    "home-manager"
     "bubblewrap"
+    "devenv"
+    "home-manager"
     "nixos"
     "overlays"
     "packages"
@@ -33,6 +34,7 @@ let
 
   stubInputs = {
     inherit (pkgs) nixpkgs;
+    devenv = { };
     home-manager = { };
     home-manager-modules = { };
     jail-nix = { };

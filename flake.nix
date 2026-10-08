@@ -4,6 +4,9 @@
   # locked inputs via inputs.substrate.inputs.home-manager.follows or .url.
   inputs.home-manager.url = "github:nix-community/home-manager";
   inputs.home-manager.inputs.nixpkgs.follows = "nixpkgs";
+  # Default dependency for the devenv extension. Consumers rewire substrate's locked
+  # inputs via inputs.substrate.inputs.devenv.follows or .url.
+  inputs.devenv.url = "github:cachix/devenv";
   # Default dependency for the bubblewrap extension. Consumers rewire substrate's locked
   # inputs via inputs.substrate.inputs.jail-nix.follows or .url.
   inputs.jail-nix.url = "sourcehut:~alexdavid/jail.nix";
@@ -154,6 +157,16 @@
           extensions-tags-test = mkTest "tags-test" ./tests/extensions/tags-test.nix;
           extensions-published-modules-test = mkTest "published-modules-test" ./tests/extensions/published-modules-test.nix;
           extensions-shells-test = mkTest "shells-test" ./tests/extensions/shells-test.nix;
+          extensions-devenv-test = mkTestWith "devenv-test" {
+            # Minimal fake input: the extension only needs mkShell for this test.
+            devenv = {
+              outPath = pkgs.path;
+              lib.mkShell = args: {
+                inherit (args) modules;
+                shellMarker = "mkShell";
+              };
+            };
+          } ./tests/extensions/devenv-test.nix;
           extensions-home-manager-test = mkTest "home-manager-test" ./tests/extensions/home-manager-test.nix;
           extensions-bubblewrap-test = mkTestWith "bubblewrap-test" {
             jailNix = jail-nix;

@@ -18,6 +18,7 @@ in
   };
   substrateModules = {
     bubblewrap = import ./extensions/bubblewrap;
+    devenv = import ./extensions/devenv;
     home-manager = import ./extensions/home-manager;
     nixos = import ./extensions/nixos;
     overlays = import ./extensions/overlays;
