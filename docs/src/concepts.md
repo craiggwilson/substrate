@@ -250,11 +250,6 @@ substrate.settings = {
   # Which finder to use
   modulesFinder = "all";
 
-  # Flake-shaped inputs keyed by role, for when your input names differ
-  # (e.g., inputs.nixpkgs = inputs.pkgs-unstable).
-  # Non-flake sources (npins, niv, ...) must be adapted with with-inputs.
-  inputs = { ... };
-
   # Supported module classes (extensions add to this)
   supportedClasses = [ "nixos" "homeManager" "generic" ];
 
@@ -281,6 +276,60 @@ substrate.settings = {
 `settings` is the core vocabulary; individual extensions declare their own keys
 in it. For the exhaustive list of every option and which file declares it, see
 the [option reference](reference/options.md).
+
+## Input Sets
+
+Substrate uses two distinct input sets.
+
+### `coreInputs` — substrate's internal dependency lock
+
+`coreInputs` is substrate's own locked flake input set. It is used only inside
+substrate to resolve extension dependency roles such as `nixpkgs`,
+`home-manager`, and `jail-nix`. It is **not** passed to user modules.
+
+In flake mode, the flake-parts builder derives `coreInputs` from
+`inputs.substrate.inputs` — the inputs declared in substrate's own `flake.lock`
+— and passes it to extensions. Consumers shape it exclusively via
+`inputs.substrate.inputs.<role>.follows` (override an existing pin) or
+`inputs.substrate.inputs.<role>.url` (add a role, for example for a third-party
+extension):
+
+```nix
+inputs.substrate.inputs.nixpkgs.follows = "nixpkgs";
+inputs.substrate.inputs.agenix.url = "github:ryantm/agenix";
+```
+
+Substrate's `flake.nix` does not need to know about the extension. The
+extension resolves the role with `slib.resolveInput "agenix" coreInputs`.
+
+### `inputs` — the consumer's inputs
+
+The consumer's `inputs` attrset is the user-facing set. It is passed unchanged
+to builders, to extension output-builder contexts, and as the `inputs` module
+argument inside class modules. Substrate never reads it for role resolution.
+
+This means your `inputs.nixpkgs` and substrate's internal `nixpkgs` pin are
+independent by default. Substrate's extensions (and the systems/configurations
+substrate builds) resolve `nixpkgs` from substrate's own lock, which tracks
+`nixpkgs-unstable`, while your own modules read your `inputs.nixpkgs`. That is
+two separate nixpkgs evaluations and potentially two different versions.
+
+Add the `follows` line when you want one nixpkgs everywhere — your version,
+your overlays, and your `nixpkgs.config` applying to what substrate builds too.
+Without it, substrate builds against its own `nixpkgs-unstable` pin:
+
+```nix
+inputs.substrate.inputs.nixpkgs.follows = "nixpkgs";
+```
+
+### Raw builds
+
+For non-flake/raw builds there is no substrate lock, so the consumer's
+flake-shaped `inputs` attrset plays both roles. The `raw` builder accepts
+`coreInputs ? inputs`: when no separate `coreInputs` is given, the same attrset
+serves as both the internal dependency set and the user-facing module argument.
+This is usually produced via
+[flake-compat](builders.md#raw-builder) or [with-inputs](builders.md#raw-builder).
 
 ## Output Builders
 
@@ -336,7 +385,7 @@ arrives in modules as an argument of the same name, computed per build with
 | `findModulesForClass` | Get modules for a specific class, via the configured finder |
 | `hasClass` | Whether a class name is in `settings.supportedClasses` |
 | `nameFromPath` | Basename of a path with `.nix` stripped (`foo.nix` → `foo`, `foo/` → `foo`) |
-| `resolveInput` | Look up a flake input by role name, honoring `settings.inputs` overrides. The value must be flake-shaped (outPath + outputs/lib); non-flake sources should be adapted with with-inputs |
+| `resolveInput` | Look up a flake input by role name in the given input set (`coreInputs` in flake mode, or the consumer's `inputs` in raw mode). The value must be flake-shaped (outPath + outputs/lib); non-flake sources should be adapted with with-inputs |
 | `unique` | Deduplicate a list |
 
 Extensions add to `substrate.lib` by assigning `config.substrate.lib.<name>`.

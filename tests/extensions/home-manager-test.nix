@@ -47,9 +47,9 @@ let
       check =
         let
           eval = evalSubstrateBase [ ];
-          hasClass = eval.config.substrate.lib.hasClass;
+          inherit (eval.config.substrate.lib) hasClass;
         in
-        hasClass "homeManager" == false;
+        !hasClass "homeManager";
     };
 
     # Test 2: homeManager class is supported with extension
@@ -57,9 +57,9 @@ let
       check =
         let
           eval = evalSubstrateWithHM [ ];
-          hasClass = eval.config.substrate.lib.hasClass;
+          inherit (eval.config.substrate.lib) hasClass;
         in
-        hasClass "homeManager" == true;
+        hasClass "homeManager";
     };
 
     # Test 3: homeManagerModules option exists with extension
@@ -117,7 +117,7 @@ let
               };
             }
           ];
-          findModulesForClass = eval.config.substrate.lib.findModulesForClass;
+          inherit (eval.config.substrate.lib) findModulesForClass;
         in
         lib.length (findModulesForClass "homeManager" [ ]) == 1;
     };
@@ -193,10 +193,11 @@ let
             }
           ];
           modules = eval.config.substrate.lib.contributionsFor "nixos" {
-            inputs = {
+            inputs = { };
+            coreInputs = {
               home-manager = fakeHomeManager;
             };
-            substrate = eval.config.substrate;
+            inherit (eval.config) substrate;
             hostname = "testhost";
             hostcfg = {
               users = [ "alice" ];
@@ -244,10 +245,11 @@ let
             }
           ];
           modules = eval.config.substrate.lib.contributionsFor "nixos" {
-            inputs = {
+            inputs = { };
+            coreInputs = {
               home-manager = fakeHomeManager;
             };
-            substrate = eval.config.substrate;
+            inherit (eval.config) substrate;
             hostname = "testhost";
             hostcfg = {
               users = [ "alice" ];
@@ -271,13 +273,14 @@ let
             }
           ];
           configs = (builtins.head eval.config.substrate.outputs.global.homeConfigurations).build {
-            inputs = {
+            inputs = { };
+            coreInputs = {
               # Stub inputs so the builder runs its real code path without
               # evaluating a second nixpkgs or a full home-manager config.
               nixpkgs = fakeNixpkgs;
               home-manager = fakeHomeManager;
             };
-            substrate = eval.config.substrate;
+            inherit (eval.config) substrate;
           };
         in
         configs == { };
@@ -299,11 +302,12 @@ let
             }
           ];
           configs = (builtins.head eval.config.substrate.outputs.global.homeConfigurations).build {
-            inputs = {
+            inputs = { };
+            coreInputs = {
               nixpkgs = fakeNixpkgs;
               home-manager = fakeHomeManager;
             };
-            substrate = eval.config.substrate;
+            inherit (eval.config) substrate;
           };
         in
         # only the host-scoped config exists - no vanilla one alongside it
@@ -328,11 +332,12 @@ let
             }
           ];
           configs = (builtins.head eval.config.substrate.outputs.global.homeConfigurations).build {
-            inputs = {
+            inputs = { };
+            coreInputs = {
               nixpkgs = fakeNixpkgs;
               home-manager = fakeHomeManager;
             };
-            substrate = eval.config.substrate;
+            inherit (eval.config) substrate;
           };
         in
         configs == { };

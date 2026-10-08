@@ -15,6 +15,9 @@ let
 
   substrate = import ../..;
   mkRaw = inputs: module: substrate.build.raw { inherit inputs; } module;
+  mkRawWithCoreInputs =
+    inputs: coreInputs: module:
+    substrate.build.raw { inherit inputs coreInputs; } module;
 
   oneSystemModule = {
     substrate.settings.systems = [ "x86_64-linux" ];
@@ -79,6 +82,53 @@ runTests "Raw Builder Tests" {
         );
       in
       lib.isDerivation result.checks.x86_64-linux.substrate-config;
+  };
+
+  coreInputsDefaultsToInputs = {
+    check =
+      let
+        result = mkRaw { nixpkgs = nixpkgsSrc; } (
+          { inputs, ... }:
+          {
+            imports = [ oneSystemModule ];
+            substrate.settings.checks = [
+              {
+                name = "coreInputs-defaults-to-inputs";
+                valid = inputs ? nixpkgs;
+                warn = false;
+                message = "inputs not passed as module args";
+              }
+            ];
+          }
+        );
+      in
+      lib.isDerivation result.checks.x86_64-linux.substrate-config;
+  };
+
+  explicitCoreInputsUsedForResolution = {
+    check =
+      let
+        result = mkRawWithCoreInputs { } { nixpkgs = nixpkgsSrc; } (
+          { inputs, ... }:
+          {
+            imports = [
+              oneSystemModule
+              ../../extensions/nixos
+            ];
+            substrate.hosts.testhost.system = "x86_64-linux";
+            substrate.settings.checks = [
+              {
+                name = "modules-receive-consumer-inputs";
+                valid = !(inputs ? nixpkgs);
+                warn = false;
+                message = "modules should see consumer inputs, not coreInputs";
+              }
+            ];
+          }
+        );
+      in
+      result.nixosConfigurations.testhost.config.networking.hostName == "testhost"
+      && lib.isDerivation result.checks.x86_64-linux.substrate-config;
   };
 
   failingCheckThrows = {

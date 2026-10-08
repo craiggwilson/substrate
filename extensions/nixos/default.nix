@@ -1,15 +1,19 @@
 { lib, config, ... }:
 let
-  settings = config.substrate.settings;
+  inherit (config.substrate) settings;
   slib = config.substrate.lib;
 
   # All overlays come from settings.overlays
   allOverlays = settings.overlays or [ ];
 
   mkNixosConfigurations =
-    { inputs, substrate }:
+    {
+      inputs,
+      coreInputs,
+      substrate,
+    }:
     let
-      nixpkgsInput = slib.resolveInput "nixpkgs" inputs;
+      nixpkgsInput = slib.resolveInput "nixpkgs" coreInputs;
 
       pkgsConfigFor = hostcfg: settings.nixpkgsConfig // hostcfg.nixpkgsConfig;
 
@@ -98,6 +102,7 @@ let
         contributedModules = slib.contributionsFor "nixos" {
           inherit
             inputs
+            coreInputs
             substrate
             hostname
             hostcfg
@@ -108,7 +113,7 @@ let
 
         # Inputs are expected to be flake-shaped; nixpkgs exposes nixosSystem
         # on its lib output.
-        nixosSystem = nixpkgsInput.lib.nixosSystem;
+        inherit (nixpkgsInput.lib) nixosSystem;
       in
       nixosSystem {
         specialArgs = {
@@ -144,7 +149,13 @@ in
 
     outputs.global.nixosConfigurations = [
       {
-        build = { inputs, substrate }: mkNixosConfigurations { inherit inputs substrate; };
+        build =
+          {
+            inputs,
+            coreInputs,
+            substrate,
+          }:
+          mkNixosConfigurations { inherit inputs coreInputs substrate; };
       }
     ];
   };

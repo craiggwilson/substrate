@@ -12,10 +12,11 @@ contributor does not cover, such as `jailLib.mkOverlay`.
 imports = [ inputs.substrate.substrateModules.jail ];
 ```
 
-Requires a `jail-nix` input — resolved by the usual precedence: an explicit
-`jail-nix` argument, `substrate.settings.inputs."jail-nix"`, or a flake input
-named `jail-nix`. The `bubblewrap` contributor additionally requires the
-`wrappers` extension; without it jail is available only through `jailLib`.
+Requires a `jail-nix` input — resolved in this order: an explicit `jail-nix`
+module argument, then substrate's locked default. Override the default with
+`inputs.substrate.inputs.jail-nix.follows = "<name>"`. The `bubblewrap`
+contributor additionally requires the `wrappers` extension; without it jail is
+available only through `jailLib`.
 
 ### Options
 

@@ -16,8 +16,8 @@
 # that is what lets a contributor hook read options declared beside the wrapper.
 { lib, config, ... }:
 let
-  settings = config.substrate.settings;
-  contributors = settings.wrappers.contributors;
+  inherit (config.substrate) settings;
+  inherit (settings.wrappers) contributors;
 
   # One publication per class wrappers speaks for, closing over the registry so
   # the class module does not need to reach back into substrate settings. A class

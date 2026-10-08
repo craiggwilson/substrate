@@ -18,17 +18,6 @@
       default = "all";
     };
 
-    inputs = lib.mkOption {
-      type = lib.types.attrsOf lib.types.raw;
-      description = ''
-        Flake inputs used by substrate and its extensions, keyed by the role
-        name they are expected to play (e.g., nixpkgs, home-manager, jail-nix).
-        Only needed when your flake names an input differently than the role
-        it fills; inputs matching a role name are found automatically.
-      '';
-      default = { };
-    };
-
     nixpkgsConfig = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;
       description = ''

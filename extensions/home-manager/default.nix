@@ -1,6 +1,6 @@
 { lib, config, ... }:
 let
-  settings = config.substrate.settings;
+  inherit (config.substrate) settings;
   slib = config.substrate.lib;
 
   # All overlays come from settings.overlays (extensions add theirs there too)
@@ -12,10 +12,14 @@ let
   # A user attached to no host builds nothing: substrate never produces a
   # host-less ("vanilla") Home Manager configuration.
   mkHomeConfigurations =
-    { inputs, substrate }:
+    {
+      inputs,
+      coreInputs,
+      substrate,
+    }:
     let
-      nixpkgsInput = slib.resolveInput "nixpkgs" inputs;
-      homeManagerInput = slib.resolveInput "home-manager" inputs;
+      nixpkgsInput = slib.resolveInput "nixpkgs" coreInputs;
+      homeManagerInput = slib.resolveInput "home-manager" coreInputs;
 
       # One host-scoped Home Manager configuration, keyed <user>@<host>.
       # It sees the host's architecture, nixpkgs config, name (module
@@ -46,6 +50,7 @@ let
           contributedModules = slib.contributionsFor "homeManager" {
             inherit
               inputs
+              coreInputs
               substrate
               userName
               usercfg
@@ -102,6 +107,7 @@ let
   contributeToHosts =
     {
       inputs,
+      coreInputs,
       substrate,
       hostname,
       hostcfg,
@@ -110,7 +116,7 @@ let
       ...
     }:
     let
-      homeManagerInput = slib.resolveInput "home-manager" inputs;
+      homeManagerInput = slib.resolveInput "home-manager" coreInputs;
 
       # User classes are consumed in both paths; NixOS-embedded users are user
       # configurations too, so homeManager-class contributions reach them here.
@@ -119,6 +125,7 @@ let
         slib.contributionsFor "homeManager" {
           inherit
             inputs
+            coreInputs
             substrate
             pkgs
             usercfg
@@ -156,6 +163,10 @@ let
             };
           in
           {
+            # Home Manager uses the system's pkgs (resolved from substrate's
+            # locked inputs, rewired by the consumer via
+            # inputs.substrate.inputs.nixpkgs.follows), keeping the locked
+            # default coherent when the consumer rewires nixpkgs.
             useGlobalPkgs = lib.mkDefault true;
             useUserPackages = lib.mkDefault true;
             backupFileExtension = lib.mkDefault "bak";
@@ -194,7 +205,13 @@ in
 
     outputs.global.homeConfigurations = [
       {
-        build = { inputs, substrate }: mkHomeConfigurations { inherit inputs substrate; };
+        build =
+          {
+            inputs,
+            coreInputs,
+            substrate,
+          }:
+          mkHomeConfigurations { inherit inputs coreInputs substrate; };
       }
     ];
   };

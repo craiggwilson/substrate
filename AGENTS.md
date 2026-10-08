@@ -138,10 +138,17 @@ targets. `substrate.settings/systems/nixpkgsConfig` and
 `substrate.<hosts|users>.<name>.nixpkgsConfig` are core-level package-set
 vocabulary (like `systems` itself), honored by whichever builder creates
 package sets.
-Extensions must resolve flake inputs by role via
-`config.substrate.lib.resolveInput "<role>" inputs` (which honors
-`substrate.settings.inputs` overrides) rather than reading `inputs.<name>`
-directly.
+Extensions resolve flake inputs by role via
+`slib.resolveInput "<role>" coreInputs`. In flake mode `coreInputs` is
+substrate's own locked input set (`inputs.substrate.inputs` from the
+consumer's view). In raw mode `coreInputs` defaults to the consumer's
+flake-shaped `inputs` attrset. Consumers shape `coreInputs` exclusively via
+`inputs.substrate.inputs.<role>.follows` (override a substrate pin) or
+`inputs.substrate.inputs.<role>.url` (add a role, e.g. for a third-party
+extension). `coreInputs` is internal-only and is never passed into user
+modules. The consumer's `inputs` attrset is the user-facing set: builders,
+extension contexts, and class modules all receive it as `inputs`. Substrate
+never reads the consumer's `inputs` for role resolution.
 `substrate.lib` is internal plumbing for builders/extensions; it must never
 be passed into host/user modules.
 

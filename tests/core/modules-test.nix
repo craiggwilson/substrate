@@ -98,7 +98,7 @@ let
             }
           ];
         in
-        eval.config.substrate.modules.hardware.monitors.enable == true
+        eval.config.substrate.modules.hardware.monitors.enable
         && eval.config.substrate.modules.hardware.monitors.primary ? nixos;
     };
 
@@ -204,8 +204,8 @@ let
             }
           ];
         in
-        eval.config.substrate.modules.hardware.hardwareEnabled == true
-        && eval.config.substrate.modules.hardware.monitors.monitorsEnabled == true
+        eval.config.substrate.modules.hardware.hardwareEnabled
+        && eval.config.substrate.modules.hardware.monitors.monitorsEnabled
         && eval.config.substrate.modules.hardware.monitors.primary ? nixos;
     };
 

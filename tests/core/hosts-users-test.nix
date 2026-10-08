@@ -180,8 +180,8 @@ let
             }
           ];
         in
-        eval.config.substrate.settings.nixpkgsConfig.allowUnfree == true
-        && eval.config.substrate.hosts.testhost.nixpkgsConfig.cudaSupport == true
+        eval.config.substrate.settings.nixpkgsConfig.allowUnfree
+        && eval.config.substrate.hosts.testhost.nixpkgsConfig.cudaSupport
         && eval.config.substrate.users.testuser.nixpkgsConfig.permittedInsecurePackages == [ "x-1" ];
     };
 
@@ -195,7 +195,7 @@ let
             }
           ];
         in
-        eval.config.substrate.hosts.testhost.usersOnly == false;
+        !eval.config.substrate.hosts.testhost.usersOnly;
     };
 
     # Test 14: hosts can be declared home-only (usersOnly = true)
@@ -208,7 +208,7 @@ let
             }
           ];
         in
-        eval.config.substrate.hosts.homey.usersOnly == true;
+        eval.config.substrate.hosts.homey.usersOnly;
     };
   };
 in

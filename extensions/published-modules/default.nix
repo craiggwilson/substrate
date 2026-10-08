@@ -1,6 +1,6 @@
 { lib, config, ... }:
 let
-  publish = config.substrate.settings.publish;
+  inherit (config.substrate.settings) publish;
 
   hasNixos = publish.nixosModules != { };
   hasHomeManager = publish.homeManagerModules != { };

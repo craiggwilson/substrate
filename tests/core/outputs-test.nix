@@ -56,7 +56,7 @@ runTests "Outputs Tests" {
             ];
           };
         };
-        outputs = eval.config.substrate.outputs;
+        inherit (eval.config.substrate) outputs;
       in
       (builtins.head outputs.global.nixosConfigurations).build {
         inputs = "i";

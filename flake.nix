@@ -1,21 +1,23 @@
 {
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-  # Dev/test dependency: the jail extension's integration tests run against
-  # the real jail.nix. Consumers provide their own input; the jail extension
-  # resolves it by role via substrate.lib.resolveInput.
+  # Default dependency for the home-manager extension. Consumers rewire substrate's
+  # locked inputs via inputs.substrate.inputs.home-manager.follows or .url.
+  inputs.home-manager.url = "github:nix-community/home-manager";
+  inputs.home-manager.inputs.nixpkgs.follows = "nixpkgs";
+  # Default dependency for the jail extension. Consumers rewire substrate's locked
+  # inputs via inputs.substrate.inputs.jail-nix.follows or .url.
   inputs.jail-nix.url = "sourcehut:~alexdavid/jail.nix";
   # Formatter/linter for `nix fmt` and the fmt check below.
   inputs.treefmt-nix.url = "github:numtide/treefmt-nix";
 
   outputs =
-    {
-      self,
-      nixpkgs,
-      jail-nix,
-      treefmt-nix,
-      ...
-    }:
+    inputs@{ self, ... }:
     let
+      inherit (inputs)
+        nixpkgs
+        jail-nix
+        treefmt-nix
+        ;
       systems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -77,8 +79,30 @@
           programs.deadnix.enable = true;
           programs.statix.enable = true;
         };
+
+      substrate = import ./.;
+      # Substrate uses two input sets. `coreInputs` is substrate's own locked
+      # flake inputs, used internally for extension role resolution. `inputs` is
+      # the consumer's flake inputs attrset and passes through unchanged to
+      # builders, extensions, and user modules. Consumers rewire core defaults
+      # via inputs.substrate.inputs.<role>.follows or .url.
     in
-    (import ./.)
+    {
+      build = {
+        inherit (substrate.build) raw;
+        # Flake-parts entry point. Substrate's locked inputs are supplied as
+        # coreInputs; the consumer's inputs attrset passes through untouched.
+        with-flake-parts =
+          args: module:
+          substrate.build.with-flake-parts (
+            args
+            // {
+              coreInputs = inputs;
+            }
+          ) module;
+      };
+      inherit (substrate) substrateModules;
+    }
     // {
       formatter = forAllSystems (pkgs: (treefmt pkgs.system).config.build.wrapper);
 

@@ -33,10 +33,8 @@ let
 
   renderValue =
     v:
-    if v == true then
-      "true"
-    else if v == false then
-      "false"
+    if lib.isBool v then
+      if v then "true" else "false"
     else if lib.isInt v then
       toString v
     else if lib.isList v then

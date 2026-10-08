@@ -55,12 +55,12 @@ let
               ];
             }
           ];
-          overlays = eval.config.substrate.settings.overlays;
+          inherit (eval.config.substrate.settings) overlays;
           overlay = builtins.head overlays;
           # Apply the overlay to test it works
           result = overlay pkgs { };
         in
-        lib.length overlays == 1 && result.test == true;
+        lib.length overlays == 1 && result.test;
     };
 
     # Test 5: Default packages list is empty

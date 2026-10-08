@@ -4,13 +4,14 @@
   lib,
   config,
   inputs,
+  coreInputs,
   ...
 }:
 let
-  settings = config.substrate.settings;
-  outputs = config.substrate.outputs;
+  inherit (config.substrate) settings;
+  inherit (config.substrate) outputs;
   slib = config.substrate.lib;
-  nixpkgsInput = slib.resolveInput "nixpkgs" inputs;
+  nixpkgsInput = slib.resolveInput "nixpkgs" coreInputs;
 
   # All overlays come from settings.overlays (extensions add theirs there too)
   allOverlays = settings.overlays or [ ];
@@ -32,7 +33,12 @@ in
         config = config.substrate.settings.nixpkgsConfig;
       };
       builderArgs = {
-        inherit pkgs system inputs;
+        inherit
+          pkgs
+          system
+          inputs
+          coreInputs
+          ;
         inherit (config) substrate;
       };
     in
@@ -42,7 +48,7 @@ in
   flake =
     let
       builderArgs = {
-        inherit inputs;
+        inherit inputs coreInputs;
         inherit (config) substrate;
       };
     in

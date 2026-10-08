@@ -1,7 +1,7 @@
 { lib, config, ... }:
 let
-  settings = config.substrate.settings;
-  moduleFinders = config.substrate.moduleFinders;
+  inherit (config.substrate) settings;
+  inherit (config.substrate) moduleFinders;
 
   # Extracts a name from a path by taking the basename and removing .nix suffix.
   # Works for both files (foo.nix -> foo) and directories (foo/ -> foo).
@@ -74,24 +74,25 @@ let
       builtins.filter (c: c.class == class) settings.contributors
     );
 
-  # Resolve a flake input by the role it plays (e.g., "nixpkgs"), preferring an
-  # explicit substrate.settings.inputs entry over an input of the same name.
+  # Resolve a flake input by the role it plays (e.g., "nixpkgs").
+  # Substrate resolves extension inputs from its own locked inputs (coreInputs).
+  # Consumers override an existing role via inputs.substrate.inputs.<role>.follows,
+  # add a role via inputs.substrate.inputs.<role>.url, or pass it in the inputs
+  # attrset for raw builds.
   # Inputs must be flake-shaped: they must have outPath and at least one of
   # outputs or lib. Pinned source trees (npins, niv, ...) should be adapted
   # with with-inputs before being passed to substrate.
-  # Note: the throw must stay parenthesized; `a or b or throw "x"` parses as a
-  # function call on the result of the or-chain.
   resolveInput =
-    name: inputs:
+    role: coreInputs:
     let
-      value =
-        settings.inputs.${name} or inputs.${name}
-          or (throw "substrate: no input named '${name}'. Either name your input '${name}' or pass it explicitly via substrate.settings.inputs.${name}.");
+      v =
+        coreInputs.${role}
+          or (throw "substrate: no input named '${role}'. Substrate resolves extension inputs from its own locked inputs; override via inputs.substrate.inputs.${role}.follows, add a role via inputs.substrate.inputs.${role}.url (flake builds), or pass it in the inputs attrset (raw builds — see docs/src/builders.md).");
     in
-    if value ? outPath && (value ? outputs || value ? lib) then
-      value
+    if v ? outPath && (v ? outputs || v ? lib) then
+      v
     else
-      throw "substrate: input '${name}' is not flake-shaped (expected a flake input with outPath and outputs/lib). For non-flake sources (npins, niv, ...), adapt them with https://github.com/denful/with-inputs — see docs/src/builders.md.";
+      throw "substrate: input '${role}' is not flake-shaped (expected a flake input with outPath and outputs/lib). For non-flake sources (npins, niv, ...), adapt them with https://github.com/denful/with-inputs — see docs/src/builders.md.";
 in
 {
   options.substrate.lib = lib.mkOption {

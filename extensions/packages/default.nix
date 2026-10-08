@@ -1,6 +1,6 @@
 { lib, config, ... }:
 let
-  settings = config.substrate.settings;
+  inherit (config.substrate) settings;
 
   nameFromPath =
     path:

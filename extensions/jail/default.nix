@@ -10,9 +10,8 @@
 #
 # It also exposes the raw pkgs-bound jail.nix callable as `jailLib` for uses the
 # contributor does not cover — most notably `jailLib.mkOverlay` for jailing
-# whole package sets. The `jail-nix` input resolves via the usual precedence:
-# an explicit `jail-nix` arg, `substrate.settings.inputs."jail-nix"`, or an
-# input named `jail-nix` (flake or pinned source).
+# whole package sets. The `jail-nix` input resolves from substrate's locked
+# inputs (coreInputs), or an explicit `jail-nix` module argument can override it.
 args:
 let
   hasModuleArgs = args ? lib && args ? config;
@@ -26,13 +25,14 @@ let
       config,
       options,
       inputs,
+      coreInputs ? inputs,
       ...
     }:
     let
       cfg = config.substrate.settings.jail;
 
       jailInput =
-        if jail-nix != null then jail-nix else config.substrate.lib.resolveInput "jail-nix" inputs;
+        if jail-nix != null then jail-nix else config.substrate.lib.resolveInput "jail-nix" coreInputs;
 
       # jail.nix wants its config via lib.extend as an attrset whose only
       # required key is pkgs; basePermissions/additionalCombinators are
@@ -156,7 +156,7 @@ let
                 # below be appended to it.
                 declared =
                   let
-                    permissions = spec.bubblewrap.permissions;
+                    inherit (spec.bubblewrap) permissions;
                   in
                   if permissions == null then
                     [ ]

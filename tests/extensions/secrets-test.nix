@@ -718,8 +718,8 @@ runTests "Secrets Extension Tests" {
       in
       builtins.length (builtins.attrNames cfg.entries) == 3
       && cfg.entries.GITHUB_TOKEN.description == "from module one"
-      && cfg.entries.API_KEY.required == false
-      && cfg.entries.CA_BUNDLE.asPath == true
+      && !cfg.entries.API_KEY.required
+      && cfg.entries.CA_BUNDLE.asPath
       && cfg.providers.team.credentials.service_account_token == "keyring";
   };
 

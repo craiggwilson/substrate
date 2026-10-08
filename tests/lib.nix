@@ -13,7 +13,7 @@ let
       result = builtins.tryEval (builtins.deepSeq test.check test.check);
     in
     if result.success then
-      if result.value == true then
+      if result.value then
         {
           inherit name;
           success = true;
@@ -81,6 +81,7 @@ let
     let
       contextArgs = {
         inputs = { };
+        coreInputs = { };
         hostname = "h";
         host = "h";
         userName = "u";
@@ -89,7 +90,7 @@ let
           name = "h";
         };
         usercfg = null;
-        substrate = eval.config.substrate;
+        inherit (eval.config) substrate;
       };
     in
     lib.evalModules {
@@ -98,10 +99,11 @@ let
         ++ configModules
         ++ modules;
       # What a builder hands the class: pkgs (bound to the same instance the
-      # substrate eval used), the flake inputs, and the host it is building for.
+      # substrate eval used), the flake inputs, the internal dependency inputs,
+      # and the host it is building for.
       specialArgs = {
         pkgs = context.pkgs or null;
-        inherit (contextArgs) inputs hostcfg;
+        inherit (contextArgs) inputs coreInputs hostcfg;
       }
       // specialArgs
       // {

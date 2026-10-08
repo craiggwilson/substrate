@@ -4,7 +4,7 @@
   ...
 }:
 let
-  settings = config.substrate.settings;
+  inherit (config.substrate) settings;
   allModules = config.substrate.moduleFinders.all.find [ ];
 
   validateModuleClasses =

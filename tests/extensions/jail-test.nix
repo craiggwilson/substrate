@@ -98,7 +98,8 @@ let
     lib.evalModules {
       modules = testLib.coreModules ++ modules;
       specialArgs = {
-        inputs = {
+        inputs = { };
+        coreInputs = {
           jail-nix = fakeJailNix;
         };
       };
@@ -132,6 +133,9 @@ let
       inherit spec;
       context = {
         pkgs = fakePkgs;
+        coreInputs = {
+          jail-nix = fakeJailNix;
+        };
       };
     };
   wrapsArgs = {
@@ -160,19 +164,23 @@ let
         inherit spec;
         context = {
           pkgs = fakePkgs;
+          coreInputs = {
+            jail-nix = fakeJailNix;
+          };
         };
       };
   };
 
   # integration against the real jail.nix (flake input); bubblewrap is
   # linux-only, so the assertions short-circuit elsewhere
-  isLinux = pkgs.stdenv.hostPlatform.isLinux;
+  inherit (pkgs.stdenv.hostPlatform) isLinux;
   realTest = check: jailNix == null || !isLinux || check;
 
   realEval = lib.evalModules {
     modules = testLib.coreModules ++ jailModules ++ [ ../../extensions/wrappers/default.nix ];
     specialArgs = {
-      inputs = {
+      inputs = { };
+      coreInputs = {
         jail-nix = jailNix;
       };
     };
@@ -194,7 +202,7 @@ let
       inherit spec;
       context = {
         inherit pkgs;
-        inputs = {
+        coreInputs = {
           jail-nix = jailNix;
         };
       };

@@ -164,6 +164,35 @@ substrate.
 
 ### Usage
 
+For a repository that already has a `flake.nix`, use
+[flake-compat](https://github.com/edolstra/flake-compat) to reuse the flake's
+locked and resolved inputs:
+
+```nix
+# default.nix
+let
+  flake = (import flake-compat { src = ./.; }).defaultNix;
+  substrate = import flake.inputs.substrate;
+in
+substrate.build.raw {
+  inputs = flake.inputs;
+} {
+  imports = [
+    substrate.substrateModules.nixos
+    substrate.substrateModules.home-manager
+  ];
+
+  substrate.hosts.myhost = {
+    system = "x86_64-linux";
+    users = [ "alice" ];
+  };
+}
+```
+
+For a repository without a flake, use
+[with-inputs](https://github.com/denful/with-inputs) to convert npins/niv
+sources into flake-shaped inputs:
+
 ```nix
 # default.nix with npins
 let
@@ -188,12 +217,39 @@ substrate.build.raw {
 
 ### Input contract
 
-`inputs` is an attrset keyed by role name (`nixpkgs`, `home-manager`,
-`jail-nix`, …). Values must be flake-shaped inputs: they must have `outPath`
-and at least one of `outputs` or `lib`. Passing a bare pinned source tree
-(a plain path or an attrset without `outputs`/`lib`) now throws from
-`substrate.lib.resolveInput` with guidance pointing to with-inputs and this
+The `raw` builder takes two input sets, defaulting one to the other so
+non-flake callers usually pass a single attrset:
+
+- `coreInputs` — flake-shaped inputs used for substrate's internal extension
+  dependency resolution (`nixpkgs`, `home-manager`, `jail-nix`, …). In flake
+  mode this is derived from `inputs.substrate.inputs`; in raw mode it defaults
+  to `inputs`.
+- `inputs` — the consumer's flake-shaped inputs, passed unchanged to builders,
+  extension contexts, and user modules as the `inputs` module argument.
+
+Values must have `outPath` and at least one of `outputs` or `lib`. Non-flake
+sources from pin tools must be adapted with
+[with-inputs](https://github.com/denful/with-inputs) before being passed to
+substrate; passing a value without `outPath` and `outputs`/`lib` causes
+`substrate.lib.resolveInput` to throw guidance pointing to with-inputs and this
 document.
+
+For flake consumers, substrate's own `flake.lock` provides default extension
+dependencies. Override an internal pin with
+`inputs.substrate.inputs.<role>.follows = "<name>"`; add a role for a
+third-party extension with `inputs.substrate.inputs.<role>.url = "..."`.
+Extensions resolve the role with `substrate.lib.resolveInput "<role>"
+coreInputs`. Your own `inputs.<role>` is never read for role resolution; it
+reaches your modules as the `inputs` module argument. In flake mode that means
+`coreInputs.nixpkgs` (substrate's own `nixpkgs-unstable` pin) and
+`inputs.nixpkgs` are independent by default — two separate evaluations. Add
+`inputs.substrate.inputs.nixpkgs.follows = "nixpkgs";` when you want one
+nixpkgs across everything substrate builds.
+
+For the `raw` builder there is no flake lock to draw from, so the same attrset
+serves both roles by default. Pass `inputs` alone and it becomes `coreInputs`;
+pass both only when you want extension resolution and module-visible inputs to
+differ.
 
 [with-inputs](https://github.com/denful/with-inputs) converts npins, niv,
 lon, and similar sources into flake-shaped inputs, including real flake

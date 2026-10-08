@@ -37,7 +37,7 @@ let
             }
           ];
           # After apply, tags should be a list of attrsets
-          tags = eval.config.substrate.settings.tags;
+          inherit (eval.config.substrate.settings) tags;
         in
         builtins.isList tags && builtins.length tags == 2 && builtins.isAttrs (builtins.elemAt tags 0);
     };
@@ -54,7 +54,7 @@ let
               ];
             }
           ];
-          tags = eval.config.substrate.settings.tags;
+          inherit (eval.config.substrate.settings) tags;
         in
         builtins.length tags == 2;
     };
@@ -117,7 +117,7 @@ let
             { config.substrate.settings.tags = [ "core" ]; }
             { config.substrate.settings.tags = [ "other" ]; }
           ];
-          tags = eval.config.substrate.settings.tags;
+          inherit (eval.config.substrate.settings) tags;
         in
         builtins.length tags == 2;
     };
@@ -142,7 +142,7 @@ let
             }
           ];
           # This should work - laptop should imply both portable and lightweight
-          tags = eval.config.substrate.settings.tags;
+          inherit (eval.config.substrate.settings) tags;
         in
         builtins.length tags == 5; # 3 strings + 2 metatags
     };
@@ -249,7 +249,7 @@ let
             }
           ];
           # Get the extraArgsGenerator and create hasTag
-          extraArgsGenerators = eval.config.substrate.settings.extraArgsGenerators;
+          inherit (eval.config.substrate.settings) extraArgsGenerators;
           args = lib.mergeAttrsList (
             builtins.map (
               f:
@@ -291,7 +291,7 @@ let
               };
             }
           ];
-          extraArgsGenerators = eval.config.substrate.settings.extraArgsGenerators;
+          inherit (eval.config.substrate.settings) extraArgsGenerators;
           args = lib.mergeAttrsList (
             builtins.map (
               f:

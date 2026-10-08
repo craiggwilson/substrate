@@ -1,16 +1,20 @@
 # Raw builder: produces the same outputs as the flake-parts builder as a plain
-# attrset — no flake, no flake-parts. `inputs` is an attrset keyed by role name;
-# values must be flake-shaped.
+# attrset — no flake, no flake-parts. `coreInputs` is the attrset used for role
+# resolution (in raw mode it defaults to the consumer's `inputs`). `inputs` is
+# the consumer's attrset and is passed through to user modules unchanged.
 {
   build =
     {
       inputs,
+      # Inputs used for role resolution. In raw mode this defaults to the
+      # consumer's `inputs`; flake mode supplies substrate's locked inputs.
+      coreInputs ? inputs,
       # Library for evaluating the substrate configuration itself. Derived from
       # the nixpkgs input; override when nixpkgs is not among the inputs.
       lib ? (
         let
           nixpkgsInput =
-            inputs.nixpkgs
+            coreInputs.nixpkgs
               or (throw "substrate: raw builder needs inputs.nixpkgs.lib; pass flake-shaped inputs (see docs/src/builders.md for with-inputs) or a lib argument.");
         in
         nixpkgsInput.lib
@@ -21,14 +25,14 @@
     let
       eval = lib.evalModules {
         modules = [ module ];
-        specialArgs = { inherit inputs; };
+        specialArgs = { inherit inputs coreInputs; };
       };
-      substrate = eval.config.substrate;
+      inherit (eval.config) substrate;
       inherit (substrate) settings;
       inherit (substrate) outputs;
       slib = substrate.lib;
 
-      nixpkgsInput = slib.resolveInput "nixpkgs" inputs;
+      nixpkgsInput = slib.resolveInput "nixpkgs" coreInputs;
       allOverlays = settings.overlays or [ ];
 
       buildAndMerge =
@@ -37,7 +41,7 @@
       global = lib.mapAttrs (
         _: builders:
         buildAndMerge {
-          inherit inputs;
+          inherit inputs coreInputs;
           inherit substrate;
         } builders
       ) outputs.global;
@@ -54,7 +58,12 @@
             };
           in
           buildAndMerge {
-            inherit pkgs system inputs;
+            inherit
+              pkgs
+              system
+              inputs
+              coreInputs
+              ;
             inherit substrate;
           } builders
         )

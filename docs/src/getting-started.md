@@ -8,12 +8,24 @@ This guide walks you through setting up substrate in your Nix flake.
 - Basic familiarity with NixOS modules and/or Home Manager
 
 Input names (`nixpkgs`, `home-manager`, `jail-nix`, …) are conventions:
-substrate looks up each input by the role it plays. If your flake names one
-differently, map it once at the top level:
+substrate looks up each input by the role it plays. Substrate keeps two input
+sets. `coreInputs` is substrate's own locked flake input set, used internally
+to resolve extension dependencies; you never declare it directly, only rewire
+it via `inputs.substrate.inputs.<role>.follows` or `.url`. `inputs` is your
+flake's input attrset, passed unchanged to builders, extensions, and your
+modules.
 
 ```nix
-substrate.settings.inputs.nixpkgs = inputs.pkgs-unstable;
+# Make substrate use your nixpkgs for its own internal resolution
+inputs.substrate.inputs.nixpkgs.follows = "nixpkgs";
 ```
+
+Your own `inputs.nixpkgs` is independent of substrate's internal resolution by
+default: it flows to your modules as the `inputs` module argument, while
+substrate's extensions resolve `nixpkgs` from substrate's own lock, which
+tracks `nixpkgs-unstable`. That is two separate nixpkgs evaluations. The
+`follows` line above is how you make them one — your nixpkgs, your overlays,
+and your `nixpkgs.config` applying to what substrate builds too.
 
 ## Installation
 
@@ -35,8 +47,13 @@ Add substrate as a flake input alongside your other dependencies:
 }
 ```
 
-You can also use substrate without flakes. The `raw` builder takes a plain
-`inputs` attrset of flake-shaped inputs. Non-flake sources from pin tools such
+Substrate's `flake.lock` already provides `nixpkgs`, `home-manager`, `jail-nix`,
+and its other extension dependencies in `inputs.substrate.inputs`, so you only
+need to declare inputs your own modules reference. Override or add a role for a
+third-party extension by wiring it under `inputs.substrate.inputs.<role>`.
+
+You can also use substrate without flakes. The `raw` builder takes the full
+`inputs` attrset of flake-shaped inputs; non-flake sources from pin tools such
 as npins or niv are converted with
 [with-inputs](https://github.com/denful/with-inputs) before being passed to
 substrate. See [raw Builder](./builders.md#raw-builder) for the recipe.

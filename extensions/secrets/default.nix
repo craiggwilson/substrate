@@ -184,7 +184,7 @@ in
           ctx: spec:
           let
             manifest = manifestFor ctx spec;
-            scope = spec.secrets.scope;
+            inherit (spec.secrets) scope;
             # Checked here rather than left to secretspec: an undeclared scope
             # would otherwise fail at exec time, in whatever context runs the
             # wrapper, with no mention of where it should have been declared.

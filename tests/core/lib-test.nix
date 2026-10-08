@@ -32,7 +32,7 @@ let
       check =
         let
           eval = evalSubstrate [ ];
-          unique = eval.config.substrate.lib.unique;
+          inherit (eval.config.substrate.lib) unique;
         in
         unique [
           1
@@ -54,7 +54,7 @@ let
       check =
         let
           eval = evalSubstrate [ ];
-          unique = eval.config.substrate.lib.unique;
+          inherit (eval.config.substrate.lib) unique;
         in
         unique [
           "c"
@@ -74,7 +74,7 @@ let
       check =
         let
           eval = evalSubstrate [ ];
-          unique = eval.config.substrate.lib.unique;
+          inherit (eval.config.substrate.lib) unique;
         in
         unique [ ] == [ ];
     };
@@ -99,7 +99,7 @@ let
               };
             }
           ];
-          findModulesForClass = eval.config.substrate.lib.findModulesForClass;
+          inherit (eval.config.substrate.lib) findModulesForClass;
         in
         lib.length (findModulesForClass "nixos" [ ]) == 2;
     };
@@ -125,7 +125,7 @@ let
               };
             }
           ];
-          findModulesForClass = eval.config.substrate.lib.findModulesForClass;
+          inherit (eval.config.substrate.lib) findModulesForClass;
         in
         lib.length (findModulesForClass "nixos" [ ]) == 1;
     };
@@ -135,9 +135,9 @@ let
       check =
         let
           eval = evalSubstrate [ ];
-          hasClass = eval.config.substrate.lib.hasClass;
+          inherit (eval.config.substrate.lib) hasClass;
         in
-        hasClass "nixos" == true;
+        hasClass "nixos";
     };
 
     # Test 7: hasClass returns false for unsupported class
@@ -145,9 +145,9 @@ let
       check =
         let
           eval = evalSubstrate [ ];
-          hasClass = eval.config.substrate.lib.hasClass;
+          inherit (eval.config.substrate.lib) hasClass;
         in
-        hasClass "nonexistentClass" == false;
+        !hasClass "nonexistentClass";
     };
 
     # Test 8: extraArgsGenerator returns empty attrs with no generators
@@ -155,7 +155,7 @@ let
       check =
         let
           eval = evalSubstrate [ ];
-          extraArgsGenerator = eval.config.substrate.lib.extraArgsGenerator;
+          inherit (eval.config.substrate.lib) extraArgsGenerator;
           args = extraArgsGenerator {
             hostcfg = null;
             usercfg = null;
@@ -205,7 +205,7 @@ let
               ];
             }
           ];
-          extraArgsGenerator = eval.config.substrate.lib.extraArgsGenerator;
+          inherit (eval.config.substrate.lib) extraArgsGenerator;
           args = extraArgsGenerator {
             hostcfg = null;
             usercfg = null;
@@ -283,7 +283,7 @@ let
               };
             }
           ];
-          findModulesForClass = eval.config.substrate.lib.findModulesForClass;
+          inherit (eval.config.substrate.lib) findModulesForClass;
         in
         lib.length (findModulesForClass "nixos" [ ]) == 2;
     };
@@ -310,7 +310,7 @@ let
               };
             }
           ];
-          findModulesForClass = eval.config.substrate.lib.findModulesForClass;
+          inherit (eval.config.substrate.lib) findModulesForClass;
         in
         lib.length (findModulesForClass "homeManager" [ ]) == 2;
     };
@@ -331,7 +331,7 @@ let
               };
             }
           ];
-          findModulesForClass = eval.config.substrate.lib.findModulesForClass;
+          inherit (eval.config.substrate.lib) findModulesForClass;
           result = findModulesForClass "nixos" [ ];
         in
         lib.length result == 2;
@@ -351,7 +351,7 @@ let
               };
             }
           ];
-          findModulesForClass = eval.config.substrate.lib.findModulesForClass;
+          inherit (eval.config.substrate.lib) findModulesForClass;
         in
         lib.length (findModulesForClass "generic" [ ]) == 1;
     };
@@ -361,7 +361,7 @@ let
       check =
         let
           eval = evalSubstrate [ ];
-          nameFromPath = eval.config.substrate.lib.nameFromPath;
+          inherit (eval.config.substrate.lib) nameFromPath;
         in
         nameFromPath "/foo/bar/baz.nix" == "baz";
     };
@@ -371,64 +371,42 @@ let
       check =
         let
           eval = evalSubstrate [ ];
-          nameFromPath = eval.config.substrate.lib.nameFromPath;
+          inherit (eval.config.substrate.lib) nameFromPath;
         in
         nameFromPath "/foo/bar/baz" == "baz";
     };
 
-    # Test 16: resolveInput falls back to the input of the same name
-    resolveInputByName = {
+    # Test 16: resolveInput returns a role from the given input set
+    resolveInputFindsRole = {
       check =
         let
           eval = evalSubstrate [ ];
-          resolveInput = eval.config.substrate.lib.resolveInput;
+          inherit (eval.config.substrate.lib) resolveInput;
           input = {
             outPath = ./.;
-            lib = "by-name";
+            lib = "found";
           };
         in
         (resolveInput "nixpkgs" { nixpkgs = input; }) == input;
     };
 
-    # Test 17: settings.inputs overrides win over name lookup
-    resolveInputSettingsOverride = {
-      check =
-        let
-          settingsInput = {
-            outPath = ./.;
-            lib = "from-settings";
-          };
-          eval = evalSubstrate [
-            {
-              config.substrate.settings.inputs.nixpkgs = settingsInput;
-            }
-          ];
-          resolveInput = eval.config.substrate.lib.resolveInput;
-          input = {
-            outPath = ./.;
-            lib = "by-name";
-          };
-        in
-        (resolveInput "nixpkgs" { nixpkgs = input; }) == settingsInput;
-    };
-
-    # Test 18: resolveInput throws with guidance when no input is found
+    # Test 17: resolveInput throws with guidance when the role is missing
     resolveInputMissingThrows = {
       check =
         let
           eval = evalSubstrate [ ];
-          resolveInput = eval.config.substrate.lib.resolveInput;
+          inherit (eval.config.substrate.lib) resolveInput;
           result = builtins.tryEval (resolveInput "jail-nix" { });
         in
         !result.success;
     };
 
-    # Test 19: resolveInput throws with guidance for non-flake-shaped inputs
+    # Test 18: resolveInput throws with guidance for non-flake-shaped inputs
     resolveInputNonFlakeShapeThrows = {
       check =
         let
           eval = evalSubstrate [ ];
-          resolveInput = eval.config.substrate.lib.resolveInput;
+          inherit (eval.config.substrate.lib) resolveInput;
           result = builtins.tryEval (
             resolveInput "nixpkgs" {
               nixpkgs = {
