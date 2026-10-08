@@ -9,18 +9,18 @@ let
           description = "The name of the finder.";
           default = name;
         };
-  find = lib.mkOption {
-    type = lib.types.functionTo lib.types.raw;
-    description = ''
-      A function that takes a list of configs (e.g., `[hostcfg usercfg]`) and returns
-      the applicable substrate modules. The finder is responsible for merging/combining
-      the configs as appropriate for its matching strategy.
+        find = lib.mkOption {
+          type = lib.types.functionTo lib.types.raw;
+          description = ''
+            A function that takes a list of configs (e.g., `[hostcfg usercfg]`) and returns
+            the applicable substrate modules. The finder is responsible for merging/combining
+            the configs as appropriate for its matching strategy.
 
-      Examples:
-        - `finder.find [hostcfg]` — find modules for host only
-        - `finder.find [hostcfg usercfg]` — find modules for combined host+user context (NixOS-embedded and host-scoped home-manager)
-    '';
-  };
+            Examples:
+              - `finder.find [hostcfg]` — find modules for host only
+              - `finder.find [hostcfg usercfg]` — find modules for combined host+user context (NixOS-embedded and host-scoped home-manager)
+          '';
+        };
       };
     }
   );

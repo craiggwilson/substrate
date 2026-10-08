@@ -466,7 +466,9 @@ let
       check =
         let
           curried = lib.modules.importApply ./fixtures/curried-leaf.nix {
-            inputs = { marker = "from-curry"; };
+            inputs = {
+              marker = "from-curry";
+            };
           };
           eval = evalSubstrate [
             {
@@ -487,7 +489,9 @@ let
       check =
         let
           curried = lib.modules.importApply ./fixtures/curried-leaf.nix {
-            inputs = { marker = "from-curry"; };
+            inputs = {
+              marker = "from-curry";
+            };
           };
           eval = evalSubstrate [
             {

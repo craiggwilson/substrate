@@ -4,12 +4,15 @@
   # the real jail.nix. Consumers provide their own input; the jail extension
   # resolves it by role via substrate.lib.resolveInput.
   inputs.jail-nix.url = "sourcehut:~alexdavid/jail.nix";
+  # Formatter/linter for `nix fmt` and the fmt check below.
+  inputs.treefmt-nix.url = "github:numtide/treefmt-nix";
 
   outputs =
     {
       self,
       nixpkgs,
       jail-nix,
+      treefmt-nix,
       ...
     }:
     let
@@ -62,9 +65,20 @@
             # no network. Internal links are checked in every file regardless.
             mdbook-linkcheck2 --standalone --no-cache --files=__no_web_links__ ${src}
           '';
+      # Formatter for `nix fmt` and the fmt check below. nixfmt only: deadnix
+      # and statix were tried and dropped — their "fix" modes rewrite code
+      # (removing unused lambda parameters), which changes semantics.
+      treefmt =
+        system:
+        treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} {
+          projectRootFile = "flake.nix";
+          programs.nixfmt.enable = true;
+        };
     in
     (import ./.)
     // {
+      formatter = forAllSystems (pkgs: (treefmt pkgs.system).config.build.wrapper);
+
       packages = forAllSystems (pkgs: {
         docs = docsBook pkgs;
       });
@@ -125,6 +139,9 @@
           # already fails on a chapter missing from SUMMARY.md or on a broken
           # cross-reference, because create-missing and the link checker are on.
           docs = docsBook pkgs;
+
+          # Formatting/linting. Runs the same tools as `nix fmt`.
+          fmt = (treefmt pkgs.system).config.build.check self;
         }
       );
     };
