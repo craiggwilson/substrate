@@ -7,6 +7,8 @@ Substrate organizes NixOS and Home Manager configuration into a single module
 tree, and selects only the modules each host or user actually needs before
 anything is evaluated.
 
+Published docs: https://craiggwilson.com/substrate/
+
 ```nix
 substrate.modules.programs.git = {
   nixos = { ... };        # merged into NixOS system configurations
@@ -141,6 +143,8 @@ generated option reference and a link check:
 ```bash
 nix build .#docs   # HTML at result/book/index.html
 ```
+
+The published book lives at https://craiggwilson.com/substrate/.
 
 Or read it as plain Markdown under [docs/src](./docs/src/):
 

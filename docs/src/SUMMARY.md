@@ -10,17 +10,17 @@
 # Extensions
 
 - [Overview](extensions/index.md)
-- [Tags](extensions/tags.md)
+- [Bubblewrap](extensions/bubblewrap.md)
 - [Home Manager](extensions/home-manager.md)
 - [NixOS](extensions/nixos.md)
 - [Overlays](extensions/overlays.md)
 - [Packages](extensions/packages.md)
 - [Published Modules](extensions/published-modules.md)
-- [Shells](extensions/shells.md)
 - [Secrets](extensions/secrets.md)
-- [Bubblewrap](extensions/bubblewrap.md)
-- [Wrappers](extensions/wrappers.md)
+- [Shells](extensions/shells.md)
+- [Tags](extensions/tags.md)
 - [Types](extensions/types.md)
+- [Wrappers](extensions/wrappers.md)
 - [Writing an Extension](extensions/writing.md)
 
 # Internals

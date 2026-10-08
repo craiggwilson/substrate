@@ -6,17 +6,17 @@ Extensions add capabilities to substrate. Import only what you need.
 
 | Extension | Import Path | Description |
 |-----------|-------------|-------------|
+| `bubblewrap` | `substrateModules.bubblewrap` | Bubblewrap isolation via jail.nix |
 | `home-manager` | `substrateModules.home-manager` | Home Manager configuration builder |
 | `nixos` | `substrateModules.nixos` | NixOS configuration builder |
-| `tags` | `substrateModules.tags` | Tag-based module filtering |
 | `overlays` | `substrateModules.overlays` | Overlay management |
 | `packages` | `substrateModules.packages` | Package definitions |
 | `published-modules` | `substrateModules.published-modules` | Publishes your own modules under named outputs |
 | `secrets` | `substrateModules.secrets` | Declarative secrets via SecretSpec |
-| `wrappers` | `substrateModules.wrappers` | Declarative executable wrapping (`wrap` module argument) |
 | `shells` | `substrateModules.shells` | Development shells |
-| `bubblewrap` | `substrateModules.bubblewrap` | Bubblewrap isolation via jail.nix |
+| `tags` | `substrateModules.tags` | Tag-based module filtering |
 | `types` | `substrateModules.types` | Custom type definitions |
+| `wrappers` | `substrateModules.wrappers` | Declarative executable wrapping (`wrap` module argument) |
 
 ## Composition Hooks
 

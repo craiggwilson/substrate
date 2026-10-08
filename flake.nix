@@ -62,7 +62,8 @@
             ];
           }
           ''
-            mdbook build ${src} -d $out
+            mkdir -p $out/book
+            mdbook build ${src} -d $out/book
             # -f names no file, so no external link is fetched and the check needs
             # no network. Internal links are checked in every file regardless.
             mdbook-linkcheck2 --standalone --no-cache --files=__no_web_links__ ${src}
