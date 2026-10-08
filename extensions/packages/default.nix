@@ -1,13 +1,9 @@
 { lib, config, ... }:
 let
-  inherit (config.substrate) settings;
+  settingsCfg = config.substrate.settings or { };
+  packagesCfg = config.substrate.packages or { };
 
-  nameFromPath =
-    path:
-    let
-      basename = baseNameOf path;
-    in
-    lib.removeSuffix ".nix" basename;
+  nameFromPath = config.substrate.lib.nameFromPath;
 
   mkPackages =
     final:
@@ -15,61 +11,74 @@ let
       lib.map (path: {
         name = nameFromPath path;
         value = final.callPackage path { };
-      }) settings.publish.packages
+      }) ((packagesCfg.internal or [ ]) ++ (packagesCfg.publish or [ ]))
+    );
+
+  mkPublishedPackages =
+    final:
+    lib.listToAttrs (
+      lib.map (path: {
+        name = nameFromPath path;
+        value = final.callPackage path { };
+      }) (packagesCfg.publish or [ ])
     );
 
   mkPackagesDerivationsOnly = final: lib.filterAttrs (_: v: lib.isDerivation v) (mkPackages final);
 
-  namespace = settings.packageNamespace;
+  namespace = settingsCfg.packages.namespace or "custom";
 
   packagesOverlay = final: prev: {
     ${namespace} = (prev.${namespace} or { }) // (mkPackages final);
   };
+
+  publishedPackagesOverlay = final: prev: {
+    ${namespace} = (prev.${namespace} or { }) // (mkPublishedPackages final);
+  };
 in
 {
-  options.substrate = {
-    settings = {
-      packageNamespace = lib.mkOption {
-        type = lib.types.str;
-        description = "The namespace under which packages are exposed in the overlay. Example: \"hdwlinux\" results in pkgs.hdwlinux.<packageName>";
-        default = "custom";
-      };
+  options.substrate.settings.packages.namespace = lib.mkOption {
+    type = lib.types.str;
+    description = "The namespace under which packages are exposed in the overlay. Example: \"hdwlinux\" results in pkgs.hdwlinux.<packageName>";
+    default = "custom";
+  };
 
-      publish.packages = lib.mkOption {
-        type = lib.types.listOf lib.types.path;
-        default = [ ];
-        description = "Paths to package files to publish under the packages and overlays output names.";
-      };
+  options.substrate.packages = {
+    internal = lib.mkOption {
+      type = lib.types.listOf lib.types.path;
+      default = [ ];
+      description = "Package definition files available to substrate itself.";
     };
 
-    packages = lib.mkOption {
-      type = lib.types.lazyAttrsOf (lib.types.attrsOf lib.types.package);
-      description = "The packages defined in settings.publish.packages, keyed by system.";
-      default = { };
+    publish = lib.mkOption {
+      type = lib.types.listOf lib.types.path;
+      default = [ ];
+      description = "Package definition files to expose in public outputs.";
     };
   };
 
-  config.substrate = lib.mkIf (settings.publish.packages != [ ]) {
-    lib = {
-      inherit mkPackages mkPackagesDerivationsOnly;
-    };
+  config.substrate =
+    lib.mkIf ((packagesCfg.internal or [ ]) != [ ] || (packagesCfg.publish or [ ]) != [ ])
+      {
+        lib = {
+          inherit mkPackages mkPackagesDerivationsOnly;
+        };
 
-    settings.overlays = [ packagesOverlay ];
+        settings.overlays = [ packagesOverlay ];
 
-    outputs = {
-      global.overlays = [
-        {
-          build = _: {
-            packages = packagesOverlay;
-          };
-        }
-      ];
+        outputs = {
+          global.overlays = [
+            {
+              build = _: {
+                packages = publishedPackagesOverlay;
+              };
+            }
+          ];
 
-      perSystem.packages = [
-        {
-          build = { pkgs, ... }: mkPackagesDerivationsOnly pkgs;
-        }
-      ];
-    };
-  };
+          perSystem.packages = [
+            {
+              build = { pkgs, ... }: mkPackagesDerivationsOnly pkgs;
+            }
+          ];
+        };
+      };
 }

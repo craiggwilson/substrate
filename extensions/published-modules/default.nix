@@ -1,13 +1,15 @@
 { lib, config, ... }:
 let
-  inherit (config.substrate.settings) publish;
+  modulesCfg = config.substrate.modules or { };
 
-  hasNixos = publish.nixosModules != { };
-  hasHomeManager = publish.homeManagerModules != { };
-  hasSubstrate = publish.substrateModules != { };
+  publishCfg = modulesCfg.publish or { };
+
+  hasNixos = publishCfg.nixosModules != { };
+  hasHomeManager = publishCfg.homeManagerModules != { };
+  hasSubstrate = publishCfg.substrateModules != { };
 in
 {
-  options.substrate.settings.publish = {
+  options.substrate.modules.publish = {
     nixosModules = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;
       default = { };
@@ -30,19 +32,19 @@ in
   config.substrate.outputs.global = {
     nixosModules = lib.mkIf hasNixos [
       {
-        build = _: publish.nixosModules;
+        build = _: publishCfg.nixosModules;
       }
     ];
 
     homeManagerModules = lib.mkIf hasHomeManager [
       {
-        build = _: publish.homeManagerModules;
+        build = _: publishCfg.homeManagerModules;
       }
     ];
 
     substrateModules = lib.mkIf hasSubstrate [
       {
-        build = _: publish.substrateModules;
+        build = _: publishCfg.substrateModules;
       }
     ];
   };

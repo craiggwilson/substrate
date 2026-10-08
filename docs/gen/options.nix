@@ -27,12 +27,9 @@ let
     "secrets"
     "shells"
     "tags"
-    "types"
     "wrappers"
   ];
-  # `overlays` and `packages` are already part of the core module set the
-  # test library loads, and loading either twice is a duplicate declaration.
-  loadedExtensions = lib.filter (n: n != "overlays" && n != "packages") extensionNames;
+  loadedExtensions = extensionNames;
 
   stubInputs = {
     inherit (pkgs) nixpkgs;
@@ -152,7 +149,7 @@ let
     "moduleFinders"
     "outputs"
     "packages"
-    "types"
+    "overlays"
     "lib"
   ];
   present = lib.unique (lib.map groupKey entries);

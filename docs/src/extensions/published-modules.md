@@ -14,9 +14,9 @@ imports = [ inputs.substrate.substrateModules.published-modules ];
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `substrate.settings.publish.nixosModules` | attrsOf anything | Named NixOS modules, default `{}` |
-| `substrate.settings.publish.homeManagerModules` | attrsOf anything | Named Home Manager modules, default `{}` |
-| `substrate.settings.publish.substrateModules` | attrsOf anything | Named substrate modules, default `{}` |
+| `substrate.modules.publish.nixosModules` | attrsOf anything | Named NixOS modules, default `{}` |
+| `substrate.modules.publish.homeManagerModules` | attrsOf anything | Named Home Manager modules, default `{}` |
+| `substrate.modules.publish.substrateModules` | attrsOf anything | Named substrate modules, default `{}` |
 
 ### Output
 
@@ -31,7 +31,7 @@ the outputs you don't use:
 ### Usage
 
 ```nix
-substrate.settings.publish = {
+substrate.modules.publish = {
   nixosModules.my-module = ./modules/my-module.nix;
   homeManagerModules.my-home-module = ./modules/my-home-module.nix;
   substrateModules.my-substrate-extension = ./extensions/my-extension;

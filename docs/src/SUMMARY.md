@@ -19,7 +19,7 @@
 - [Secrets](extensions/secrets.md)
 - [Shells](extensions/shells.md)
 - [Tags](extensions/tags.md)
-- [Types](extensions/types.md)
+
 - [Wrappers](extensions/wrappers.md)
 - [Writing an Extension](extensions/writing.md)
 

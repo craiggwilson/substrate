@@ -26,7 +26,6 @@ in
     secrets = import ./extensions/secrets;
     shells = import ./extensions/shells;
     tags = import ./extensions/tags;
-    types = import ./extensions/types;
     wrappers = import ./extensions/wrappers;
   };
 }

@@ -231,8 +231,7 @@ let
               ../../core/hosts.nix
               ../../core/users.nix
               ../../core/outputs.nix
-              ../../extensions/overlays/default.nix
-              ../../extensions/packages/default.nix
+              ../../core/overlays.nix
               ../../core/checks.nix
               ../../extensions/nixos/default.nix
               ../../extensions/tags/default.nix
@@ -305,8 +304,7 @@ let
               ../../core/hosts.nix
               ../../core/users.nix
               ../../core/outputs.nix
-              ../../extensions/overlays/default.nix
-              ../../extensions/packages/default.nix
+              ../../core/overlays.nix
               ../../core/checks.nix
               ../../extensions/nixos/default.nix
               ../../extensions/tags/default.nix
@@ -341,8 +339,7 @@ let
               ../../core/hosts.nix
               ../../core/users.nix
               ../../core/outputs.nix
-              ../../extensions/overlays/default.nix
-              ../../extensions/packages/default.nix
+              ../../core/overlays.nix
               ../../core/checks.nix
               ../../extensions/nixos/default.nix
               ../../extensions/tags/default.nix
@@ -389,8 +386,7 @@ let
               ../../core/hosts.nix
               ../../core/users.nix
               ../../core/outputs.nix
-              ../../extensions/overlays/default.nix
-              ../../extensions/packages/default.nix
+              ../../core/overlays.nix
               ../../core/checks.nix
               ../../extensions/nixos/default.nix
               ../../extensions/tags/default.nix

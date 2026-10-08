@@ -45,8 +45,7 @@ let
   # Core modules required by most tests
   coreModules = minimalCoreModules ++ [
     ../core/outputs.nix
-    ../extensions/overlays/default.nix
-    ../extensions/packages/default.nix
+    ../core/overlays.nix
   ];
 
   # Extended core modules (includes hosts, users, checks)

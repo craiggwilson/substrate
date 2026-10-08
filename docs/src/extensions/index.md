@@ -15,7 +15,6 @@ Extensions add capabilities to substrate. Import only what you need.
 | `secrets` | `substrateModules.secrets` | Declarative secrets via SecretSpec |
 | `shells` | `substrateModules.shells` | Development shells |
 | `tags` | `substrateModules.tags` | Tag-based module filtering |
-| `types` | `substrateModules.types` | Custom type definitions |
 | `wrappers` | `substrateModules.wrappers` | Declarative executable wrapping (`wrap` module argument) |
 
 ## Composition Hooks

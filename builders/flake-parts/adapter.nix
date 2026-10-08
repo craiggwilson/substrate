@@ -14,7 +14,7 @@ let
   nixpkgsInput = slib.resolveInput "nixpkgs" coreInputs;
 
   # All overlays come from settings.overlays (extensions add theirs there too)
-  allOverlays = settings.overlays or [ ];
+  allOverlays = settings.overlays;
 
   # Build all builders for an output and merge results
   buildAndMerge =

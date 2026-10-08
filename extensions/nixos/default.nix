@@ -4,7 +4,7 @@ let
   slib = config.substrate.lib;
 
   # All overlays come from settings.overlays
-  allOverlays = settings.overlays or [ ];
+  allOverlays = settings.overlays;
 
   mkNixosConfigurations =
     {

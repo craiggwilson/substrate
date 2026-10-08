@@ -12,12 +12,14 @@ imports = [ inputs.substrate.substrateModules.packages ];
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `substrate.settings.publish.packages` | list of paths | Package definition files to publish |
-| `substrate.settings.packageNamespace` | string | Namespace in overlay (default: `custom`) |
+| `substrate.settings.packages.namespace` | string | Namespace in overlay (default: `custom`) |
+| `substrate.packages.internal` | list of paths | Package definition files available to substrate itself |
+| `substrate.packages.publish` | list of paths | Package definition files to expose in public outputs |
 | `substrate.packages` | lazy attrs of attrs of package | The published packages keyed by system. Set by the extension, not by you |
 
-Note the split: inputs go under `settings.publish.*`, and the evaluated result
-comes back under `substrate.packages`. There is no `settings.packages` option.
+Note the split: behavior goes under `settings.*`, internal and published inputs
+go under `substrate.packages.*`, and the evaluated result comes back under
+`substrate.packages`.
 
 ### Output
 
@@ -27,13 +29,17 @@ comes back under `substrate.packages`. There is no `settings.packages` option.
 ### Usage
 
 ```nix
-substrate.settings = {
-  publish.packages = [
+substrate.packages = {
+  internal = [
+    ./pkgs/local-only-tool.nix
+  ];
+  publish = [
     ./pkgs/my-tool.nix
     ./pkgs/another-tool.nix
   ];
-  packageNamespace = "myproject";
 };
+
+substrate.settings.packages.namespace = "myproject";
 ```
 
 Package file format:

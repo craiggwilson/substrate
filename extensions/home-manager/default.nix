@@ -4,7 +4,7 @@ let
   slib = config.substrate.lib;
 
   # All overlays come from settings.overlays (extensions add theirs there too)
-  allOverlays = settings.overlays or [ ];
+  allOverlays = settings.overlays;
 
   # Home Manager configurations exist only for users of home-only hosts
   # (usersOnly = true); users of system hosts are delivered by the

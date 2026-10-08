@@ -1,6 +1,6 @@
 { lib, config, ... }:
 let
-  inherit (config.substrate) settings;
+  shellsCfg = config.substrate.shells or { };
   slib = config.substrate.lib;
 
   mkShells =
@@ -12,17 +12,17 @@ let
           inherit lib inputs pkgs;
           inherit (pkgs) stdenv;
         };
-      }) settings.publish.shells
+      }) shellsCfg.publish
     );
 in
 {
-  options.substrate.settings.publish.shells = lib.mkOption {
+  options.substrate.shells.publish = lib.mkOption {
     type = lib.types.listOf lib.types.path;
     default = [ ];
-    description = "Paths to shell files to publish under the devShells output name.";
+    description = "Paths to shell files to build into devShells.";
   };
 
-  config.substrate.outputs.perSystem.devShells = lib.mkIf (settings.publish.shells != [ ]) [
+  config.substrate.outputs.perSystem.devShells = lib.mkIf (shellsCfg.publish != [ ]) [
     {
       build = { pkgs, inputs, ... }: mkShells { inherit pkgs inputs; };
     }

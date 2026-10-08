@@ -33,7 +33,7 @@
       slib = substrate.lib;
 
       nixpkgsInput = slib.resolveInput "nixpkgs" coreInputs;
-      allOverlays = settings.overlays or [ ];
+      allOverlays = settings.overlays;
 
       buildAndMerge =
         builderArgs: builders: lib.foldl' (acc: builder: acc // (builder.build builderArgs)) { } builders;

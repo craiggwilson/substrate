@@ -152,6 +152,8 @@
 
           # Extension tests
           extensions-tags-test = mkTest "tags-test" ./tests/extensions/tags-test.nix;
+          extensions-published-modules-test = mkTest "published-modules-test" ./tests/extensions/published-modules-test.nix;
+          extensions-shells-test = mkTest "shells-test" ./tests/extensions/shells-test.nix;
           extensions-home-manager-test = mkTest "home-manager-test" ./tests/extensions/home-manager-test.nix;
           extensions-bubblewrap-test = mkTestWith "bubblewrap-test" {
             jailNix = jail-nix;

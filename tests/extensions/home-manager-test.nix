@@ -25,7 +25,7 @@ let
     ../../core/users.nix
     ../../core/outputs.nix
     ../../core/checks.nix
-    ../../extensions/overlays/default.nix
+    ../../core/overlays.nix
     ../../extensions/nixos/default.nix
     ../../extensions/home-manager/default.nix
   ];

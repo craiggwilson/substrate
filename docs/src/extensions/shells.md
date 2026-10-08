@@ -12,7 +12,7 @@ imports = [ inputs.substrate.substrateModules.shells ];
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `substrate.settings.publish.shells` | list of paths | Shell definition files to publish |
+| `substrate.shells.publish` | list of paths | Shell definition files to build |
 
 The list is of paths, and the `devShell` attribute name comes from the file's
 basename — so shells are identified by where they live, not by a key you write.
@@ -24,7 +24,7 @@ basename — so shells are identified by where they live, not by a key you write
 ### Usage
 
 ```nix
-substrate.settings.publish.shells = [
+substrate.shells.publish = [
   ./shells/default.nix
   ./shells/rust.nix
 ];
