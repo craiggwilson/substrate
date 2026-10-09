@@ -155,7 +155,9 @@ runTests "Devenv Extension Tests" {
                 ../../extensions/devenv
               ];
 
-              substrate.packages.publish = [ ./fixtures/hello-package.nix ];
+              substrate.packages.publish.hello-package =
+                { pkgs, ... }:
+                pkgs.callPackage ./fixtures/hello-package.nix { };
 
               substrate.devenv.shells.default = {
                 packages = [ pkgs.hello ];

@@ -264,9 +264,10 @@ substrate.settings = {
   # (extensions push into this; builders consume via substrate.lib.contributionsFor)
   contributors = [ { class = "nixos"; contribute = ...; } ... ];
 
-  # Files to publish under an output name. Extensions add to this namespace:
-  # publish.packages, publish.shells, publish.nixosModules, ...
-  publish = { ... };
+  # Overlays applied to every package set substrate creates. Extensions push
+  # into this (e.g. the packages extension adds its own overlay here), and the
+  # overlays extension prepends its `internal` and `publish` entries
+  overlays = [ (final: prev: { ... }) ];
 
   # Configuration validation checks, run by builders that support them
   checks = [ ... ];
@@ -274,8 +275,11 @@ substrate.settings = {
 ```
 
 `settings` is the core vocabulary; individual extensions declare their own keys
-in it. For the exhaustive list of every option and which file declares it, see
-the [option reference](reference/options.md).
+in it. Extensions keep their own inputs in their own namespaces —
+`substrate.packages.publish`, `substrate.shells.publish`,
+`substrate.modules.publish` — rather than under `settings`. For the exhaustive
+list of every option and which file declares it, see the
+[option reference](reference/options.md).
 
 ## Input Sets
 

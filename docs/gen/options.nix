@@ -152,6 +152,8 @@ let
     "outputs"
     "packages"
     "overlays"
+    "shells"
+    "devenv"
     "lib"
   ];
   present = lib.unique (lib.map groupKey entries);
