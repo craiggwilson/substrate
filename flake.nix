@@ -141,6 +141,7 @@
           core-outputs-test = mkTest "outputs-test" ./tests/core/outputs-test.nix;
 
           # Extension tests
+          extensions-capabilities-test = mkTest "capabilities-test" ./tests/extensions/capabilities-test.nix;
           extensions-tags-test = mkTest "tags-test" ./tests/extensions/tags-test.nix;
           extensions-published-modules-test = mkTest "published-modules-test" ./tests/extensions/published-modules-test.nix;
           extensions-shells-test = mkTest "shells-test" ./tests/extensions/shells-test.nix;

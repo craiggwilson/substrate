@@ -4,7 +4,7 @@ This document provides guidance for AI agents working with the substrate codebas
 
 ## Project Overview
 
-Substrate is a Nix module framework for building flakes with modular, extensible configuration management. It is **not** tied to any specific module inclusion strategy - the tag-based finder is just one implementation of the finder interface.
+Substrate is a Nix module framework for building flakes with modular, extensible configuration management. It is **not** tied to any specific module inclusion strategy — `tags` and `capabilities` are two independent implementations of the finder interface, and `substrate.settings.modulesFinder` selects which one a configuration uses. They are mutually exclusive, because both set that option.
 
 ## Project Structure
 
@@ -14,27 +14,31 @@ substrate/
 ├── flake.nix            # Standalone flake with test checks
 ├── core/                # Core modules (always loaded)
 │   ├── checks.nix       # Configuration validation
+│   ├── default.nix      # Core module set
 │   ├── finders.nix      # Module finder interface and "all" finder
 │   ├── hosts.nix        # Host configuration type
 │   ├── lib.nix          # Shared library functions
 │   ├── modules.nix      # Module tree type definition
 │   ├── outputs.nix      # Output builder registration
+│   ├── overlays.nix     # Overlay management
 │   ├── settings.nix     # Global settings
 │   └── users.nix        # User configuration type
 ├── extensions/          # Optional extension modules
+│   ├── bubblewrap/      # Bubblewrap isolation via jail.nix (the bubblewrap contributor)
+│   ├── capabilities/    # Capability-based module selection (provides/requires)
 │   ├── home-manager/    # Home Manager configuration builder
-│   ├── jail/            # Bubblewrap isolation via jail.nix (the bubblewrap contributor)
 │   ├── nixos/           # NixOS configuration builder
 │   ├── overlays/        # Overlay management
 │   ├── packages/        # Package definitions
+│   ├── published-modules/ # Publishes your own modules under named outputs
 │   ├── secrets/         # Declarative secrets (SecretSpec)
 │   ├── shells/          # Development shells
 │   ├── tags/            # Tag-based module filtering
-│   ├── types/           # Custom type definitions
 │   └── wrappers/        # Declarative executable wrapping (wrap module arg)
 ├── builders/            # Build system adapters
+│   ├── common.nix       # Shared builder core
 │   ├── flake-parts/     # flake-parts integration
-│   └── raw/             # Plain attrset builder (no flake/flake-parts)
+│   └── plain.nix        # Plain attrset builder (no flake/flake-parts)
 ├── tests/               # Test suite
 │   ├── lib.nix          # Test utilities
 │   ├── core/            # Core module tests
@@ -213,6 +217,23 @@ nix flake check
 1. Create extension or modify existing one
 2. Register finder: `config.substrate.moduleFinders.<name>.find = cfgs: ...`
 3. Optionally set as default: `config.substrate.settings.modulesFinder = "<name>"`
+4. Widen `settings.modulesFinder`'s `type` — **only `type`**. Core already declares it,
+   and redefining `description` or `default` makes `lib/modules.nix` throw
+   "already declared" the first time the option is forced. `enum` supports type
+   merging (`binOp` unions the allowed names), so adding one is safe:
+   ```nix
+   settings.modulesFinder = lib.mkOption { type = lib.types.enum [ finderName ]; };
+   ```
+
+`find` receives a list of configs and is called once per builder, sometimes twice for
+the same host: NixOS hosts call it with `[hostcfg]` and again with `[hostcfg] ++
+userConfigs` (`extensions/nixos/default.nix`), Home Manager with `[hostcfg usercfg]`. A
+finder must derive its own roots from whatever configs it is handed rather than
+assuming a particular shape.
+
+Because `find` is only reached through `slib.findModulesForClass`, a finder whose option
+declarations are wrong can still pass tests that call `moduleFinders.<name>.find`
+directly. Cover `findModulesForClass` in at least one test.
 
 ### Modifying Core Behavior
 

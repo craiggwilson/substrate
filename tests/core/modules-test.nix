@@ -236,7 +236,7 @@ let
               ../../extensions/nixos/default.nix
               ../../extensions/tags/default.nix
               {
-                config.substrate.settings.tags = [
+                config.substrate.settings.tags.options = [
                   "core"
                   "other"
                 ];
@@ -309,7 +309,7 @@ let
               ../../extensions/nixos/default.nix
               ../../extensions/tags/default.nix
               {
-                config.substrate.settings.tags = [
+                config.substrate.settings.tags.options = [
                   "core"
                   "extra"
                 ];
@@ -344,7 +344,7 @@ let
               ../../extensions/nixos/default.nix
               ../../extensions/tags/default.nix
               {
-                config.substrate.settings.tags = [
+                config.substrate.settings.tags.options = [
                   "core"
                   "other"
                 ];
@@ -352,7 +352,7 @@ let
               {
                 config.substrate.modules.programs.test = {
                   nixos = { };
-                  tags = [ "invalid-tag" ]; # This tag is not in settings.tags
+                  tags = [ "invalid-tag" ]; # This tag is not in settings.tags.options
                 };
               }
               {
@@ -391,7 +391,7 @@ let
               ../../extensions/nixos/default.nix
               ../../extensions/tags/default.nix
               {
-                config.substrate.settings.tags = [
+                config.substrate.settings.tags.options = [
                   "core"
                   "other"
                 ];

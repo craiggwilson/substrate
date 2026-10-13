@@ -11,6 +11,7 @@
 
 - [Overview](extensions/index.md)
 - [Bubblewrap](extensions/bubblewrap.md)
+- [Capabilities](extensions/capabilities.md)
 - [Home Manager](extensions/home-manager.md)
 - [NixOS](extensions/nixos.md)
 - [Overlays](extensions/overlays.md)

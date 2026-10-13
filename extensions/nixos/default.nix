@@ -134,16 +134,19 @@ let
           }
           { users.users = nixosUsers; }
         ]
-        ++ settings.nixosModules
+        ++ settings.nixos.modules
         ++ slib.unique (hostNixosModules ++ userNixosModules)
         ++ contributedModules;
       }
     ) systemHosts;
 in
 {
-  options.substrate.settings.nixosModules = lib.mkOption {
+  options.substrate.settings.nixos.modules = lib.mkOption {
     type = lib.types.listOf lib.types.deferredModule;
-    description = "External NixOS modules to include in all NixOS configurations.";
+    description = ''
+      External NixOS modules to include in all NixOS configurations, ahead of
+      anything the finder selects. Was `substrate.settings.nixosModules`.
+    '';
     default = [ ];
   };
 

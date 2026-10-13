@@ -12,7 +12,7 @@ imports = [ inputs.substrate.substrateModules.home-manager ];
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `substrate.settings.homeManagerModules` | list | External HM modules to include |
+| `substrate.settings.homeManager.modules` | list | External HM modules to include |
 | `substrate.users.<name>.nixpkgsConfig` | attrs | Extra nixpkgs config for this user's host-scoped package sets (merged under the host's) |
 
 Host-scoped builds import a package set with

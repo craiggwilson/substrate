@@ -74,7 +74,7 @@ let
             host = hostname;
           };
           modules =
-            (settings.homeManagerModules or [ ])
+            (settings.homeManager.modules or [ ])
             ++ (slib.findModulesForClass "homeManager" [
               hostcfg
               usercfg
@@ -177,7 +177,7 @@ let
               inherit inputs hostcfg;
               host = hostname;
             };
-            sharedModules = settings.homeManagerModules or [ ];
+            sharedModules = settings.homeManager.modules or [ ];
             users = lib.listToAttrs (
               lib.map (usercfg: {
                 inherit (usercfg) name;
@@ -189,12 +189,14 @@ let
     ];
 in
 {
-  options.substrate.settings = {
-    homeManagerModules = lib.mkOption {
-      type = lib.types.listOf lib.types.deferredModule;
-      description = "External home-manager modules to include in all home-manager configurations.";
-      default = [ ];
-    };
+  options.substrate.settings.homeManager.modules = lib.mkOption {
+    type = lib.types.listOf lib.types.deferredModule;
+    description = ''
+      External home-manager modules to include in all home-manager
+      configurations, ahead of anything the finder selects. Was
+      `substrate.settings.homeManagerModules`.
+    '';
+    default = [ ];
   };
 
   config.substrate = {

@@ -7,6 +7,7 @@ Extensions add capabilities to substrate. Import only what you need.
 | Extension | Import Path | Description |
 |-----------|-------------|-------------|
 | `bubblewrap` | `substrateModules.bubblewrap` | Bubblewrap isolation via jail.nix |
+| `capabilities` | `substrateModules.capabilities` | Capability-based module selection via `provides`/`requires` (alternative to `tags`) |
 | `home-manager` | `substrateModules.home-manager` | Home Manager configuration builder |
 | `nixos` | `substrateModules.nixos` | NixOS configuration builder |
 | `overlays` | `substrateModules.overlays` | Overlay management |
@@ -16,6 +17,11 @@ Extensions add capabilities to substrate. Import only what you need.
 | `shells` | `substrateModules.shells` | Development shells |
 | `tags` | `substrateModules.tags` | Tag-based module filtering |
 | `wrappers` | `substrateModules.wrappers` | Declarative executable wrapping (`wrap` module argument) |
+
+`tags` and `capabilities` are two ways to select the same set of modules. Both set
+`substrate.settings.modulesFinder`, so import one or the other. They are similar enough
+that switching is worth understanding precisely — see
+[How this differs from tags](capabilities.md#how-this-differs-from-tags).
 
 ## Composition Hooks
 

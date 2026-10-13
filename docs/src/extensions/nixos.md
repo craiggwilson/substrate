@@ -12,7 +12,7 @@ imports = [ inputs.substrate.substrateModules.nixos ];
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `substrate.settings.nixosModules` | list | External NixOS modules to include |
+| `substrate.settings.nixos.modules` | list | External NixOS modules to include |
 | `substrate.hosts.<name>.usersOnly` | bool (default `false`) | Home-only host: no system built; users get host-scoped Home Manager configs |
 | `substrate.hosts.<name>.nixpkgsConfig` | attrs | Extra nixpkgs config for this host's package set |
 

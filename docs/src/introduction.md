@@ -38,7 +38,7 @@ Add substrate as a flake input:
       ];
 
       substrate = {
-        settings.tags = [
+        settings.tags.options = [
           "core"
           "desktop"
           "laptop"

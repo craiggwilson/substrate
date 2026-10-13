@@ -29,16 +29,18 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags = [
+              config.substrate.settings.tags.options = [
                 "core"
                 "other"
               ];
             }
           ];
-          # After apply, tags should be a list of attrsets
-          inherit (eval.config.substrate.settings) tags;
+          # After apply, each entry should be an attrset
+          inherit (eval.config.substrate.settings.tags) options;
         in
-        builtins.isList tags && builtins.length tags == 2 && builtins.isAttrs (builtins.elemAt tags 0);
+        builtins.isList options
+        && builtins.length options == 2
+        && builtins.isAttrs (builtins.elemAt options 0);
     };
 
     # Test 2: Metatags with implications work
@@ -47,15 +49,15 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags = [
+              config.substrate.settings.tags.options = [
                 "laptop"
                 { "hardware:dell" = [ "laptop" ]; }
               ];
             }
           ];
-          inherit (eval.config.substrate.settings) tags;
+          inherit (eval.config.substrate.settings.tags) options;
         in
-        builtins.length tags == 2;
+        builtins.length options == 2;
     };
 
     # Test 3: Parent prefixes are automatically implied
@@ -64,7 +66,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags = [
+              config.substrate.settings.tags.options = [
                 "theming"
                 "theming:catppuccin"
               ];
@@ -87,7 +89,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags = [
+              config.substrate.settings.tags.options = [
                 "laptop"
                 { "hardware:dell" = [ "typo-tag" ]; } # "typo-tag" is not declared
               ];
@@ -113,12 +115,12 @@ let
       check =
         let
           eval = evalSubstrate [
-            { config.substrate.settings.tags = [ "core" ]; }
-            { config.substrate.settings.tags = [ "other" ]; }
+            { config.substrate.settings.tags.options = [ "core" ]; }
+            { config.substrate.settings.tags.options = [ "other" ]; }
           ];
-          inherit (eval.config.substrate.settings) tags;
+          inherit (eval.config.substrate.settings.tags) options;
         in
-        builtins.length tags == 2;
+        builtins.length options == 2;
     };
 
     # Test 6: Same tag with implications merges correctly
@@ -127,7 +129,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags = [
+              config.substrate.settings.tags.options = [
                 "portable"
                 "lightweight"
                 "laptop"
@@ -135,15 +137,15 @@ let
               ];
             }
             {
-              config.substrate.settings.tags = [
+              config.substrate.settings.tags.options = [
                 { "laptop" = [ "lightweight" ]; }
               ];
             }
           ];
           # This should work - laptop should imply both portable and lightweight
-          inherit (eval.config.substrate.settings) tags;
+          inherit (eval.config.substrate.settings.tags) options;
         in
-        builtins.length tags == 5; # 3 strings + 2 metatags
+        builtins.length options == 5; # 3 strings + 2 metatags
     };
 
     # Test 7: Modules are filtered by tags correctly
@@ -152,7 +154,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags = [
+              config.substrate.settings.tags.options = [
                 "core"
                 "extra"
               ];
@@ -181,7 +183,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags = [ "core" ];
+              config.substrate.settings.tags.options = [ "core" ];
               config.substrate.modules.programs.always = {
                 nixos = { };
                 # No tags - should always be included
@@ -207,7 +209,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags = [
+              config.substrate.settings.tags.options = [
                 "desktop"
                 "desktop:custom"
                 "desktop:custom:hyprland"
@@ -231,13 +233,62 @@ let
         lib.length found == 2;
     };
 
+    # The separator between tag levels is configurable. With "." the implication
+    # chain works on dots, and a colon stops being a boundary.
+    tagSeparatorIsConfigurable = {
+      check =
+        let
+          # Under the configured "." separator, "audio.prod.midi" is hierarchical
+          # and implies "audio", which the user's tag references.
+          evalDotted = evalSubstrate [
+            {
+              config.substrate.settings.tags.separator = ".";
+              config.substrate.settings.tags.options = [
+                "audio"
+                "audio.prod"
+                "audio.prod.midi"
+              ];
+              config.substrate.modules.audioModule = {
+                nixos = { };
+                tags = [ "audio" ];
+              };
+              config.substrate.users.testuser = {
+                tags = [ "audio.prod.midi" ];
+              };
+            }
+          ];
+          # Under the default ":" separator the same name is flat, so "audio" is
+          # a parent of nothing and is reported unused.
+          evalDefault = evalSubstrate [
+            {
+              config.substrate.settings.tags.options = [
+                "audio"
+                "audio.prod"
+                "audio.prod.midi"
+              ];
+              config.substrate.modules.audioModule = {
+                nixos = { };
+                tags = [ "audio" ];
+              };
+              config.substrate.users.testuser = {
+                tags = [ "audio.prod.midi" ];
+              };
+            }
+          ];
+          unusedCheck =
+            eval:
+            builtins.head (builtins.filter (c: c.name == "unused-tags") eval.config.substrate.settings.checks);
+        in
+        (unusedCheck evalDotted).valid && !(unusedCheck evalDefault).valid;
+    };
+
     # Test 10: hasTag function works correctly
     hasTagFunctionWorks = {
       check =
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags = [
+              config.substrate.settings.tags.options = [
                 "gui"
                 "fonts"
                 { "gui" = [ "fonts" ]; }
@@ -268,10 +319,10 @@ let
       check =
         let
           eval = evalSubstrate [
-            { config.substrate.settings.tags = [ ]; }
+            { config.substrate.settings.tags.options = [ ]; }
           ];
         in
-        eval.config.substrate.settings.tags == [ ];
+        eval.config.substrate.settings.tags.options == [ ];
     };
 
     # Test 12: Prefix matching for hasTag works
@@ -280,7 +331,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags = [
+              config.substrate.settings.tags.options = [
                 "theming"
                 "theming:catppuccin"
                 "theming:catppuccin:mocha"

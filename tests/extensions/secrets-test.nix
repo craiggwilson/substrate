@@ -1199,7 +1199,7 @@ runTests "Secrets Extension Tests" {
   };
 
   noHomeManagerModulesWithoutHm = {
-    check = !(eval.config.substrate.settings ? homeManagerModules);
+    check = !(eval.config.substrate.settings ? homeManager);
   };
 
   # --- provider CLIs (secretspec.providers.<alias>.package) ---
