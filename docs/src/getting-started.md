@@ -9,11 +9,11 @@ This guide walks you through setting up substrate in your Nix flake.
 
 Input names (`nixpkgs`, `home-manager`, `jail-nix`, …) are conventions:
 substrate looks up each input by the role it plays. Substrate keeps two input
-sets. `coreInputs` is substrate's own locked flake input set, used internally
-to resolve extension dependencies; you never declare it directly, only rewire
-it via `inputs.substrate.inputs.<role>.follows` or `.url`. `inputs` is your
-flake's input attrset, passed unchanged to builders, extensions, and your
-modules.
+sets. `coreInputs` is the set it resolves extension dependencies from —
+substrate's own locked inputs when substrate is one of your inputs, and yours
+otherwise. You never declare it directly, only rewire it via
+`inputs.substrate.inputs.<role>.follows` or `.url`. `inputs` is your flake's
+input attrset, passed unchanged to builders, extensions, and your modules.
 
 ```nix
 # Make substrate use your nixpkgs for its own internal resolution
@@ -52,11 +52,14 @@ and its other extension dependencies in `inputs.substrate.inputs`, so you only
 need to declare inputs your own modules reference. Override or add a role for a
 third-party extension by wiring it under `inputs.substrate.inputs.<role>`.
 
-You can also use substrate without flakes. The `raw` builder takes the full
-`inputs` attrset of flake-shaped inputs; non-flake sources from pin tools such
-as npins or niv are converted with
+You can also use substrate without flakes, in either direction. The `flake`
+builder is a bare `flake.nix` that calls substrate with no build-system
+dependency at all. The `raw` builder evaluates substrate from a `default.nix`,
+taking an `inputs` attrset of flake-shaped inputs; non-flake sources from pin
+tools such as npins or niv are converted with
 [with-inputs](https://github.com/denful/with-inputs) before being passed to
-substrate. See [raw Builder](./builders.md#raw-builder) for the recipe.
+substrate. See [flake Builder](./builders.md#flake-builder) and
+[raw Builder](./builders.md#raw-builder).
 
 ## Basic Configuration
 

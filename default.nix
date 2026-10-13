@@ -10,11 +10,17 @@ let
       };
     in
     builder.build args module';
+
+  plain = import ./builders/plain.nix;
 in
 {
   build = {
     with-flake-parts = wrapBuilder (import ./builders/flake-parts/default.nix);
-    raw = wrapBuilder (import ./builders/raw/default.nix);
+    # One implementation, two names. `raw` is the entry point a non-flake
+    # `default.nix` has always used; `flake` is the same function under the
+    # name a `flake.nix` reaches for. See docs/src/builders.md.
+    flake = wrapBuilder plain;
+    raw = wrapBuilder plain;
   };
   substrateModules = {
     bubblewrap = import ./extensions/bubblewrap;

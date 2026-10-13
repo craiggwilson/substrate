@@ -8,8 +8,14 @@ let
       type = lib.types.functionTo lib.types.raw;
       description = ''
         Function producing the attrset to merge into the output.
-        Per-system builders receive { pkgs, system, inputs, substrate };
-        global builders receive { inputs, substrate }.
+        Per-system builders receive { pkgs, system, inputs, coreInputs, substrate };
+        global builders receive { inputs, coreInputs, substrate }.
+
+        `coreInputs` is the flake-shaped input set extensions resolve their own
+        dependencies from; `inputs` is the consumer's set. A builder that cannot
+        supply both should say so here rather than leave it undefined: an
+        extension defaulting it to `inputs` resolves roles against the
+        consumer's pins instead of substrate's.
       '';
     };
   };

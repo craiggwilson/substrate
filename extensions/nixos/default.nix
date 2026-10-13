@@ -9,7 +9,10 @@ let
   mkNixosConfigurations =
     {
       inputs,
-      coreInputs,
+      # Falls back to the consumer's inputs so a builder that supplies only
+      # those still builds hosts; it just resolves nixpkgs from the consumer's
+      # pin rather than substrate's.
+      coreInputs ? inputs,
       substrate,
     }:
     let

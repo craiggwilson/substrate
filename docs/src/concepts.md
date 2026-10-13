@@ -264,9 +264,10 @@ substrate.settings = {
   # (extensions push into this; builders consume via substrate.lib.contributionsFor)
   contributors = [ { class = "nixos"; contribute = ...; } ... ];
 
-  # Files to publish under an output name. Extensions add to this namespace:
-  # publish.packages, publish.shells, publish.nixosModules, ...
-  publish = { ... };
+  # Overlays applied to every package set substrate creates. Extensions push
+  # into this (e.g. the packages extension adds its own overlay here), and the
+  # overlays extension prepends its `internal` and `publish` entries
+  overlays = [ (final: prev: { ... }) ];
 
   # Configuration validation checks, run by builders that support them
   checks = [ ... ];
@@ -274,8 +275,11 @@ substrate.settings = {
 ```
 
 `settings` is the core vocabulary; individual extensions declare their own keys
-in it. For the exhaustive list of every option and which file declares it, see
-the [option reference](reference/options.md).
+in it. Extensions keep their own inputs in their own namespaces —
+`substrate.packages.publish`, `substrate.shells.publish`,
+`substrate.modules.publish` — rather than under `settings`. For the exhaustive
+list of every option and which file declares it, see the
+[option reference](reference/options.md).
 
 ## Input Sets
 
@@ -283,16 +287,17 @@ Substrate uses two distinct input sets.
 
 ### `coreInputs` — substrate's internal dependency lock
 
-`coreInputs` is substrate's own locked flake input set. It is used only inside
-substrate to resolve extension dependency roles such as `nixpkgs`,
-`home-manager`, and `jail-nix`. It is **not** passed to user modules.
+`coreInputs` is the input set substrate resolves its extension dependency roles
+from — `nixpkgs`, `home-manager`, `jail-nix`, and any role a third-party
+extension adds. Extensions read it, not your modules; your modules read
+`inputs`.
 
-In flake mode, the flake-parts builder derives `coreInputs` from
-`inputs.substrate.inputs` — the inputs declared in substrate's own `flake.lock`
-— and passes it to extensions. Consumers shape it exclusively via
-`inputs.substrate.inputs.<role>.follows` (override an existing pin) or
-`inputs.substrate.inputs.<role>.url` (add a role, for example for a third-party
-extension):
+Every builder derives `coreInputs` from `inputs.substrate.inputs` — the inputs
+declared in substrate's own `flake.lock` — whenever substrate is one of your
+inputs, and falls back to your `inputs` otherwise. Consumers shape it
+exclusively via `inputs.substrate.inputs.<role>.follows` (override an existing
+pin) or `inputs.substrate.inputs.<role>.url` (add a role, for example for a
+third-party extension):
 
 ```nix
 inputs.substrate.inputs.nixpkgs.follows = "nixpkgs";
@@ -301,6 +306,9 @@ inputs.substrate.inputs.agenix.url = "github:ryantm/agenix";
 
 Substrate's `flake.nix` does not need to know about the extension. The
 extension resolves the role with `slib.resolveInput "agenix" coreInputs`.
+
+See the [builder input contract](builders.md#input-contract) for what to pass
+when neither applies.
 
 ### `inputs` — the consumer's inputs
 
@@ -322,14 +330,14 @@ Without it, substrate builds against its own `nixpkgs-unstable` pin:
 inputs.substrate.inputs.nixpkgs.follows = "nixpkgs";
 ```
 
-### Raw builds
+### Inputs without a flake lock
 
-For non-flake/raw builds there is no substrate lock, so the consumer's
-flake-shaped `inputs` attrset plays both roles. The `raw` builder accepts
-`coreInputs ? inputs`: when no separate `coreInputs` is given, the same attrset
-serves as both the internal dependency set and the user-facing module argument.
-This is usually produced via
-[flake-compat](builders.md#raw-builder) or [with-inputs](builders.md#raw-builder).
+Where substrate is not one of your inputs, `coreInputs` falls back to your own
+`inputs`, so one attrset serves as both the internal dependency set and the
+user-facing module argument. That is the shape
+[flake-compat](builders.md#raw-builder) and
+[with-inputs](builders.md#raw-builder) produce. Pass `coreInputs` explicitly to
+split the two.
 
 ## Output Builders
 
@@ -385,7 +393,7 @@ arrives in modules as an argument of the same name, computed per build with
 | `findModulesForClass` | Get modules for a specific class, via the configured finder |
 | `hasClass` | Whether a class name is in `settings.supportedClasses` |
 | `nameFromPath` | Basename of a path with `.nix` stripped (`foo.nix` → `foo`, `foo/` → `foo`) |
-| `resolveInput` | Look up a flake input by role name in the given input set (`coreInputs` in flake mode, or the consumer's `inputs` in raw mode). The value must be flake-shaped (outPath + outputs/lib); non-flake sources should be adapted with with-inputs |
+| `resolveInput` | Look up a flake input by role name in the given input set (`coreInputs`). The value must be flake-shaped (outPath + outputs/lib); non-flake sources should be adapted with with-inputs |
 | `unique` | Deduplicate a list |
 
 Extensions add to `substrate.lib` by assigning `config.substrate.lib.<name>`.

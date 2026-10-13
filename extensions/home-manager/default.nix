@@ -14,7 +14,10 @@ let
   mkHomeConfigurations =
     {
       inputs,
-      coreInputs,
+      # Falls back to the consumer's inputs so a builder that supplies only
+      # those still builds configurations; it just resolves home-manager and
+      # nixpkgs from the consumer's pins rather than substrate's.
+      coreInputs ? inputs,
       substrate,
     }:
     let
@@ -107,7 +110,7 @@ let
   contributeToHosts =
     {
       inputs,
-      coreInputs,
+      coreInputs ? inputs,
       substrate,
       hostname,
       hostcfg,
@@ -208,7 +211,7 @@ in
         build =
           {
             inputs,
-            coreInputs,
+            coreInputs ? inputs,
             substrate,
           }:
           mkHomeConfigurations { inherit inputs coreInputs substrate; };

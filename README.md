@@ -35,13 +35,13 @@ The other goals:
   configuration live side by side in one tree, instead of being split across
   separate `nixos/` and `home-manager/` module directories that have to be
   kept in sync by hand.
-- **Works with and without flakes.** The flake-parts builder is one option,
-  not a requirement. The `raw` builder produces the same outputs as a plain
-  attrset, driven by an `inputs` attrset from npins, niv, or a flake — see
-  [raw Builder](./docs/src/builders.md#raw-builder).
-- **Not tied to any build system.** Builders are pluggable; flake-parts and
-  raw are just the first two. Core knows about hosts, users, and package
-  sets — never about a specific builder.
+- **Works with and without flakes.** A bare `flake.nix` needs nothing but
+  substrate itself, flake-parts is optional, and a `default.nix` driven by
+  npins or niv works too — all three produce the same outputs. See
+  [Builders](./docs/src/builders.md).
+- **Not tied to any build system.** Builders are pluggable; a builder is a
+  `lib` plus a shape, and everything else lives in `builders/common.nix`. Core
+  knows about hosts, users, and package sets — never about a specific builder.
 
 ## Inspirations
 

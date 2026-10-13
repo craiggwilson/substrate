@@ -1,8 +1,11 @@
+let
+  common = import ../common.nix;
+in
 {
   build =
     {
       inputs,
-      coreInputs ? inputs,
+      coreInputs ? common.defaultCoreInputs inputs,
       flake-parts-lib ? inputs.flake-parts.lib,
       self ? inputs.self,
       ...

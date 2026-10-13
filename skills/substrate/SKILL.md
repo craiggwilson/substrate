@@ -41,9 +41,11 @@ You are a substrate framework expert. You understand the module tree structure, 
 | `core/users.nix` | User configuration type |
 | `core/outputs.nix` | Output builder registration |
 | `core/checks.nix` | Configuration validation |
+| `builders/common.nix` | Shared builder core: evaluate, resolve nixpkgs, package sets, merge |
 | `builders/flake-parts/default.nix` | flake-parts integration |
 | `builders/flake-parts/adapter.nix` | Flake-parts adapter implementation |
-| `builders/flake-parts/checks.nix` | Turns `settings.checks` into a flake check |
+| `builders/plain.nix` | Plain attrset / bare-flake builder, exported as `flake` and `raw` |
+| `core/checks.nix` | Configuration validation, rendered as a `checks` output builder |
 | `extensions/wrappers/class-module.nix` | Publishes the `wrap` module argument |
 | `extensions/wrappers/render.nix` | Renders a wrapper spec into a package |
 | `extensions/wrappers/builders.nix` | Wrappers' output builders |

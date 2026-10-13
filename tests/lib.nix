@@ -141,6 +141,51 @@ let
       ];
     }).config.wrapped;
 
+  # Stand-in for the directory walk a consumer writes for themselves: every
+  # package or shell in a directory, as a name-to-path attribute set. A `.nix`
+  # file contributes its basename and a subdirectory its own name, so a file and
+  # a directory both land under the name you would expect. Subdirectories are
+  # definitions rather than grouping folders — importing one resolves its
+  # `default.nix` — so this does not recurse into them.
+  #
+  # `readDir` reports an entry's kind as a bare string on Nix 2.35 and later and
+  # as `{ type = ...; }` before that; only the type needs accommodating, since the
+  # name is always the attribute key.
+  definitionsIn =
+    dir:
+    let
+      entryType = entry: if lib.isString entry then entry else entry.type;
+      entries = builtins.readDir dir;
+      definition =
+        name:
+        let
+          kind = entryType entries.${name};
+          path = dir + "/${name}";
+        in
+        if kind == "directory" then
+          {
+            inherit name;
+            value = path;
+          }
+        else if kind == "regular" && lib.hasSuffix ".nix" name then
+          {
+            name = lib.removeSuffix ".nix" name;
+            value = path;
+          }
+        else
+          null;
+    in
+    lib.listToAttrs (lib.filter (x: x != null) (lib.map definition (builtins.attrNames entries)));
+
+  # Stands in for an `import-tree` input: every `.nix` file in a directory, as a
+  # list of modules ready to drop into `imports`. Real `import-tree` recurses and
+  # returns modules rather than paths; for a flat directory of package or shell
+  # modules the result is the same.
+  modulesIn =
+    dir:
+    lib.filter (n: lib.hasSuffix ".nix" n) (lib.attrNames (builtins.readDir dir))
+    |> map (f: dir + "/${f}");
+
   # Create an evalSubstrate function with specific base modules
   mkEvalSubstrate =
     baseModules: extraModules:
@@ -187,6 +232,8 @@ in
   inherit
     classEval
     classWrap
+    definitionsIn
+    modulesIn
     lib
     runTest
     minimalCoreModules

@@ -139,10 +139,11 @@ targets. `substrate.settings/systems/nixpkgsConfig` and
 vocabulary (like `systems` itself), honored by whichever builder creates
 package sets.
 Extensions resolve flake inputs by role via
-`slib.resolveInput "<role>" coreInputs`. In flake mode `coreInputs` is
-substrate's own locked input set (`inputs.substrate.inputs` from the
-consumer's view). In raw mode `coreInputs` defaults to the consumer's
-flake-shaped `inputs` attrset. Consumers shape `coreInputs` exclusively via
+`slib.resolveInput "<role>" coreInputs`. `coreInputs` is
+`inputs.substrate.inputs` from the consumer's view — substrate's own locked
+input set — and falls back to the consumer's flake-shaped `inputs` attrset
+where substrate is not one of their inputs. Consumers shape `coreInputs`
+exclusively via
 `inputs.substrate.inputs.<role>.follows` (override a substrate pin) or
 `inputs.substrate.inputs.<role>.url` (add a role, e.g. for a third-party
 extension). `coreInputs` is internal-only and is never passed into user
@@ -154,11 +155,19 @@ be passed into host/user modules.
 
 ### Builders
 
-Builders integrate substrate with build systems. flake-parts and a plain
-attrset (`raw`) builder are supported. Each builder:
-1. Evaluates the substrate configuration
-2. Calls registered output builders
-3. Produces the requested outputs
+Builders integrate substrate with build systems: flake-parts, a bare flake
+(`flake`), and a plain attrset (`raw`, the same function as `flake`).
+`builders/common.nix` holds everything a builder shares — evaluating the
+configuration, resolving the nixpkgs role, building a package set per system,
+and merging the output builders registered for a name. A builder supplies a
+`lib` and the shape it returns, and walks `outputs.global` and
+`outputs.perSystem` itself; `default.nix`'s `wrapBuilder` imports `./core` for
+it. Two things a builder must not get wrong, because nothing else fails loudly
+if they are wrong: bake `settings.overlays` and `settings.nixpkgsConfig` into
+every package set it builds, and walk `outputs.perSystem` as well as
+`outputs.global` (that walk is what runs core's configuration checks).
+`tests/builders/conformance-test.nix` runs one body against every builder;
+add a new builder there as well as in `default.nix`.
 
 ## Nix Idioms Used
 

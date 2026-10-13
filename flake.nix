@@ -7,6 +7,9 @@
   # Default dependency for the bubblewrap extension. Consumers rewire substrate's locked
   # inputs via inputs.substrate.inputs.jail-nix.follows or .url.
   inputs.jail-nix.url = "sourcehut:~alexdavid/jail.nix";
+  # Only used by substrate's own tests and docs: consumers bring their own
+  # flake-parts, which the with-flake-parts builder takes from `inputs`.
+  inputs.flake-parts.url = "github:hercules-ci/flake-parts";
   # Formatter/linter for `nix fmt` and the fmt check below.
   inputs.treefmt-nix.url = "github:numtide/treefmt-nix";
 
@@ -17,6 +20,8 @@
         nixpkgs
         jail-nix
         treefmt-nix
+        home-manager
+        flake-parts
         ;
       systems = [
         "x86_64-linux"
@@ -82,25 +87,10 @@
         };
 
       substrate = import ./.;
-      # Substrate uses two input sets. `coreInputs` is substrate's own locked
-      # flake inputs, used internally for extension role resolution. `inputs` is
-      # the consumer's flake inputs attrset and passes through unchanged to
-      # builders, extensions, and user modules. Consumers rewire core defaults
-      # via inputs.substrate.inputs.<role>.follows or .url.
     in
     {
       build = {
-        inherit (substrate.build) raw;
-        # Flake-parts entry point. Substrate's locked inputs are supplied as
-        # coreInputs; the consumer's inputs attrset passes through untouched.
-        with-flake-parts =
-          args: module:
-          substrate.build.with-flake-parts (
-            args
-            // {
-              coreInputs = inputs;
-            }
-          ) module;
+        inherit (substrate.build) flake raw with-flake-parts;
       };
       inherit (substrate) substrateModules;
     }
@@ -164,6 +154,11 @@
           # Builder tests
           builders-checks-test = mkTest "checks-test" ./tests/builders/checks-test.nix;
           builders-raw-test = mkTestWith "raw-test" { nixpkgsSrc = nixpkgs; } ./tests/builders/raw-test.nix;
+          builders-conformance-test = mkTestWith "conformance-test" {
+            nixpkgsSrc = nixpkgs;
+            homeManagerSrc = home-manager;
+            flakePartsSrc = flake-parts;
+          } ./tests/builders/conformance-test.nix;
 
           # Docs. Not a mkTest: there is no test file, and building the book
           # already fails on a chapter missing from SUMMARY.md or on a broken

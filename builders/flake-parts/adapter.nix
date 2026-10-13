@@ -8,49 +8,32 @@
   ...
 }:
 let
-  inherit (config.substrate) settings;
-  inherit (config.substrate) outputs;
-  slib = config.substrate.lib;
-  nixpkgsInput = slib.resolveInput "nixpkgs" coreInputs;
+  inherit (config.substrate) settings outputs;
 
-  # All overlays come from settings.overlays (extensions add theirs there too)
-  allOverlays = settings.overlays;
-
-  # Build all builders for an output and merge results
-  buildAndMerge =
-    builderArgs: builders: lib.foldl' (acc: builder: acc // (builder.build builderArgs)) { } builders;
+  # flake-parts has already evaluated the configuration by the time this runs,
+  # so there is nothing left to evaluate — `fromConfig` rather than
+  # `fromModule`.
+  c = (import ../common.nix).fromConfig {
+    inherit
+      coreInputs
+      inputs
+      lib
+      ;
+    inherit (config) substrate;
+  };
 in
 {
   inherit (settings) systems;
 
-  # Under flake-parts, each per-system output name becomes a flake output
+  # Under flake-parts, each per-system output name becomes a flake output.
+  # One package set per system, shared across every output name.
   perSystem =
     { system, ... }:
     let
-      pkgs = import nixpkgsInput {
-        inherit system;
-        overlays = allOverlays;
-        config = config.substrate.settings.nixpkgsConfig;
-      };
-      builderArgs = {
-        inherit
-          pkgs
-          system
-          inputs
-          coreInputs
-          ;
-        inherit (config) substrate;
-      };
+      pkgs = c.pkgsFor system;
     in
-    lib.mapAttrs (_: builders: buildAndMerge builderArgs builders) outputs.perSystem;
+    lib.mapAttrs (_: builders: c.merge (c.perSystemArgs system pkgs) builders) outputs.perSystem;
 
-  # Under flake-parts, each global output name becomes a flake-level output
-  flake =
-    let
-      builderArgs = {
-        inherit inputs coreInputs;
-        inherit (config) substrate;
-      };
-    in
-    lib.mapAttrs (_: builders: buildAndMerge builderArgs builders) outputs.global;
+  # Each global output name becomes a flake-level output.
+  flake = lib.mapAttrs (_: builders: c.merge c.globalArgs builders) outputs.global;
 }
