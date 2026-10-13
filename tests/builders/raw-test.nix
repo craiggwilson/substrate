@@ -166,4 +166,40 @@ runTests "Raw Builder Tests" {
       in
       lib.isDerivation result.checks.x86_64-linux.substrate-config;
   };
+
+  devenvShellsBuilt = {
+    check =
+      let
+        fakeDevenv = {
+          outPath = pkgs.path;
+          lib.mkShell = args: {
+            shellMarker = "mkShell";
+            inherit (args) modules;
+          };
+        };
+
+        result =
+          mkRawWithCoreInputs { }
+            {
+              nixpkgs = nixpkgsSrc;
+              devenv = fakeDevenv;
+            }
+            {
+              imports = [
+                oneSystemModule
+                ../../extensions/devenv
+              ];
+
+              substrate.devenv.shells.default = {
+                packages = [ pkgs.hello ];
+                enterShell = "echo hello";
+              };
+            };
+      in
+      result.devShells.x86_64-linux.default.shellMarker == "mkShell"
+      # The entry, plus the two modules the extension adds for devenv's `devenv`
+      # wrapper. What they say is covered by the extension's own tests; here it
+      # is only that a builder gets a shell.
+      && builtins.length result.devShells.x86_64-linux.default.modules == 3;
+  };
 }

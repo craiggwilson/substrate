@@ -23,6 +23,9 @@
   # and the flake-parts builder itself, are left out rather than failed.
   homeManagerSrc ? null,
   flakePartsSrc ? null,
+  # Real devenv, because flake-parts requires devShells entries to be packages.
+  # Optional: without it the devenv case is skipped rather than failed.
+  devenvSrc ? null,
 }:
 let
   testLib = import ../lib.nix { inherit pkgs; };
@@ -54,6 +57,12 @@ let
   };
 
   system = "x86_64-linux";
+
+  # flake-parts types devShells as `lazyAttrsOf package`, so a fake that returns a
+  # plain attrset fails that check before the assertion runs. Real devenv returns
+  # a real derivation and passes, so this case uses it; `raw` has no such type
+  # constraint and takes the same path.
+  fakeDevenv = devenvSrc;
 
   # What a consumer's inputs look like when they are deliberately not the set
   # roles resolve from: the transport entries a builder needs, different
@@ -218,6 +227,33 @@ let
       ];
     };
 
+  # The devenv extension is the one whose inputs differ between the builders:
+  # `coreInputs ? inputs` means the flake-parts builder resolves devenv against
+  # substrate's pin while `raw` resolves against the consumer's, so a shell entry
+  # must survive both. Using a function entry is the point — it is the shape a
+  # submodule type consumes before the extension can hand it on.
+  #
+  # Only the shape reaching the builder is checked, not devenv's evaluation: the
+  # fake stands in so the case does not drag devenv's module tree into every
+  # builder's result. devenv-real-test.nix covers the real evaluation.
+  devenvModule =
+    {
+      ...
+    }:
+    {
+      imports = [
+        ../../extensions/devenv
+        baseModule
+      ];
+
+      substrate.devenv.shells.probe =
+        { pkgs, ... }:
+        {
+          devenv.root = "/tmp";
+          packages = [ pkgs.hello ];
+        };
+    };
+
   # The case table. Each entry is { extraArgs?, inputs?, module?, assertion };
   # `assertion` takes the built result and returns whether it conforms.
   caseTable = {
@@ -295,6 +331,23 @@ let
         result:
         result.nixosConfigurations.testhost.config.networking.hostName == "testhost"
         && lib.isDerivation result.checks.${system}.substrate-config;
+    };
+
+    # A shell entry reaches the builder and survives being handed to devenv. Both
+    # builders differ here — flake-parts resolves the role against substrate's
+    # pin, `raw` against the consumer's — so a function entry must work either
+    # way. Forcing the derivation is the assertion: a builder that let this
+    # configuration's module system consume the entry would fail on `pkgs`.
+    devenvEntryReachesDevenv = {
+      # The extension resolves its role from coreInputs, so the input goes there
+      # rather than in inputs — the same split `explicitCoreInputs` exercises.
+      # inputs still carries flake-parts, which the builder needs for its lib.
+      extraArgs.coreInputs = stubInputs // {
+        flake-parts = flakePartsSrc;
+        devenv = fakeDevenv;
+      };
+      module = devenvModule;
+      assertion = result: devenvSrc != null && lib.isDerivation result.devShells.${system}.probe;
     };
   };
 

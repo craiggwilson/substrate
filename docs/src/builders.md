@@ -58,7 +58,7 @@ attrset.
 │    nixos ─────────────────────▶ NixOS configurations          │
 │    home-manager ──────────────▶ Home Manager configurations   │
 │    packages, shells ─────────▶ derivations                   │
-│    overlays, published-modules                                │
+│    overlays, devenv, published-modules                        │
 │    core ─────────────────────▶ configuration checks          │
 └───────────────────────────────┬───────────────────────────────┘
                                 ▼

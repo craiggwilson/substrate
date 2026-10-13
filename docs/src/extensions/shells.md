@@ -1,6 +1,9 @@
 # Shells Extension
 
-Defines development shells built with `mkShell`.
+Defines development shells built with `mkShell`. Orthogonal to the
+[devenv extension](devenv.md), which builds shells with devenv instead; both
+write to `devShells`, so load either or both — just don't claim the same shell
+name twice.
 
 ### Import
 

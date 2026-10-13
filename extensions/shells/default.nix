@@ -1,4 +1,8 @@
 # Development shells built with mkShell, published under the `devShells` output.
+#
+# Orthogonal to the devenv extension: that one builds shells with devenv, this
+# one with mkShell. Both write to `devShells`, so a configuration may load
+# either or both — they just cannot claim the same shell name.
 {
   lib,
   config,

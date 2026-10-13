@@ -7,6 +7,7 @@ Extensions add capabilities to substrate. Import only what you need.
 | Extension | Import Path | Description |
 |-----------|-------------|-------------|
 | `bubblewrap` | `substrateModules.bubblewrap` | Bubblewrap isolation via jail.nix |
+| `devenv` | `substrateModules.devenv` | devenv shells built through substrate |
 | `home-manager` | `substrateModules.home-manager` | Home Manager configuration builder |
 | `nixos` | `substrateModules.nixos` | NixOS configuration builder |
 | `overlays` | `substrateModules.overlays` | Overlay management |
