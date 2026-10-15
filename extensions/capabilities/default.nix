@@ -63,6 +63,10 @@ let
     configs:
     slib.unique (lib.concatMap (cfg: if cfg == null then [ ] else (cfg.requires or [ ])) configs);
 
+  providedOf =
+    configs:
+    slib.unique (lib.concatMap (cfg: if cfg == null then [ ] else (cfg.provides or [ ])) configs);
+
   # Whether this entry satisfies a requirement, i.e. the requirement selects
   # something the entry offers. Requirement first, so `covered r` is a
   # predicate over entries.
@@ -91,6 +95,7 @@ let
   # modules happen to be visited in.
   resolveFrom =
     requiredSet:
+    initialProvided:
     let
       loop =
         included: provided:
@@ -122,15 +127,23 @@ let
           in
           loop next (slib.unique (provided ++ grown));
     in
-    loop [ ] [ ];
+    loop [ ] initialProvided;
 
-  resolve = configs: resolveFrom (requirementsOf configs);
+  resolve = configs:
+    let
+      expanded =
+        if builtins.length configs == 1 && (builtins.head configs) ? users then
+          configs ++ map (user: config.substrate.users.${user}) (builtins.head configs).users
+        else
+          configs;
+    in
+    resolveFrom (slib.unique (requirementsOf expanded ++ providedOf expanded)) (providedOf expanded);
 
   # Diagnostics ask whether a requirement is satisfied *in the result*, which
   # is not the same question as the admission gate above.
   unmetRequirements =
     resolution:
-    lib.filter (r: !(builtins.any (covered r) resolution.includedEntries)) resolution.requiredSet;
+    lib.filter (r: !(builtins.any (cap: selects r cap) resolution.providedCapabilities)) resolution.requiredSet;
 
   renderList = items: "[${lib.concatStringsSep ", " items}]";
 
@@ -160,7 +173,7 @@ let
         detail = entriesCovering r;
       in
       if detail.matching == [ ] then
-        "  Capability '${r}' is required but no module offers it."
+        "  Capability '${r}' is required but nothing offers it."
       else
         "  Capability '${r}' is offered by ${toString (builtins.length detail.matching)} module(s), all filtered out; they require ${renderList detail.unmetByThem}."
     ) (unmetRequirements resolution);
@@ -187,6 +200,16 @@ let
         map (user: config.substrate.users.${user}) hostcfg.users
       )
     );
+
+  providedForContext =
+    { hostcfg, usercfg }:
+    providedOf (
+      lib.optionals (hostcfg != null) [ hostcfg ]
+      ++ lib.optionals (usercfg != null) [ usercfg ]
+      ++ lib.optionals (usercfg == null && hostcfg != null) (
+        map (user: config.substrate.users.${user}) hostcfg.users
+      )
+    );
 in
 {
   options.substrate = {
@@ -202,6 +225,19 @@ in
                 on the host. Naming a capability selects every module that
                 offers it. Each one has to end up covered by an included module;
                 a requirement nothing satisfies is a build error.
+              '';
+            };
+
+            provides = lib.mkOption {
+              type = capabilityType;
+              default = [ ];
+              description = ''
+                Capabilities this host provides to module resolution. They do
+                not select modules on their own, but they can satisfy module
+                requirements and show up in `hasCapability`.
+
+                Use this for host-local facts like the machine model, location,
+                or any other root capability you want modules to depend on.
               '';
             };
           };
@@ -220,6 +256,19 @@ in
                 Capabilities this user needs, resolved together with the host's
                 own. A capability required only by a user is satisfied for every
                 configuration that user appears in.
+              '';
+            };
+
+            provides = lib.mkOption {
+              type = capabilityType;
+              default = [ ];
+              description = ''
+                Capabilities this user provides to module resolution. They do
+                not select modules on their own, but they can satisfy module
+                requirements and show up in `hasCapability`.
+
+                Use this for user-local facts like the user's name, profile, or
+                any other root capability you want modules to depend on.
               '';
             };
           };
@@ -297,9 +346,20 @@ in
 
       extraArgsGenerators = [
         (args: {
+          # `args` carries build context beyond { hostcfg, usercfg } (inputs,
+          # pkgs, …); requirementsForContext wants exactly the two it reads.
+          # `args` carries build context beyond { hostcfg, usercfg } (inputs,
+          # pkgs, …); requirementsForContext wants exactly the two it reads.
           hasCapability =
             capability:
-            builtins.elem capability (resolveFrom (requirementsForContext args)).providedCapabilities;
+            builtins.elem capability (
+              resolveFrom
+                (slib.unique (
+                  requirementsForContext { hostcfg = args.hostcfg or null; usercfg = args.usercfg or null; }
+                  ++ providedForContext { hostcfg = args.hostcfg or null; usercfg = args.usercfg or null; }
+                ))
+                (providedForContext { hostcfg = args.hostcfg or null; usercfg = args.usercfg or null; })
+            ).providedCapabilities;
         })
       ];
 

@@ -20,15 +20,19 @@ Do not import this alongside the tags extension — both set `substrate.settings
 | Option | Type | Description |
 |--------|------|-------------|
 | `substrate.hosts.<name>.requires` | list of string | Capabilities this host needs |
+| `substrate.hosts.<name>.provides` | list of string | Capabilities this host provides to module resolution |
 | `substrate.users.<name>.requires` | list of string | Capabilities this user needs |
+| `substrate.users.<name>.provides` | list of string | Capabilities this user provides to module resolution |
 | `substrate.modules.<path>.provides` | list of string | Capabilities this module offers |
 | `substrate.modules.<path>.requires` | list of string | Capabilities this module needs |
 | `substrate.settings.capabilities.separator` | string | Character separating capability levels used by `:*` and `:**` (default `:`) |
 
 ## The model
 
-Hosts and users are the **roots**. Together their `requires` form one set — the
-*required set* — and that set is the only thing selection looks at.
+Hosts and users are the **roots**. Their `requires` form one set — the
+*required set* — and their `provides` seed the build's initial provided set.
+Selection still starts from the required set, but root-provided capabilities can
+immediately satisfy module requirements.
 
 ```nix
 # modules/hardware/audio.nix
@@ -88,8 +92,8 @@ repeat until no more modules join:
 providedCapabilities = provided
 ```
 
-`provided` starts empty, so the first pass sees only what the roots named. Two gates,
-moving differently:
+`provided` starts with whatever the roots provide, so the first pass sees both what
+the roots named and what they already make available. Two gates, moving differently:
 
 - **`wants` reads `requiredSet` and never widens.** A module gets in by offering
   something a host or user actually asked for. Nothing that happens during resolution
@@ -154,7 +158,9 @@ programs.vscode.mcp  provides [ "ai:clients" "programs:vscode:mcp" ] requires [ 
 
 `mcp` satisfies `wants` on `ai:clients` from the start, but it cannot `admit` until
 `vscode` is in the build providing `programs:vscode`. It joins on the next pass. This
-chains, so an extension of an extension arrives too.
+chains, so an extension of an extension arrives too. A root-provided capability works
+the same way: if the host or user provides it, a module that requires it can join
+without another module having to introduce it first.
 
 Note it still has to satisfy `wants` — meeting its requirements is not enough on its own.
 A module offering nothing reachable from `requiredSet` stays out however many of its
@@ -234,7 +240,8 @@ capabilities exact names are exact and subtree selection is explicit via `:*` or
 | Declared with | `tags` on every module and host | `provides` / `requires` |
 | Matching | a module's tags intersect the host's | exact match, or explicit `:*` / `:**` wildcard |
 | `a:b` vs `a` | `a:b` implies `a`, both ways | `a` selects only `a`; `a:*` selects one level; `a:**` selects any depth |
-| Host says | `tags = [ "hardware:dell" ]` | `requires = [ "hardware:model:dell" "hardware:audio" ]` |
+| Host says | `tags = [ "hardware:dell" ]` | `requires = [ "hardware:model:dell" "hardware:audio" ]`, `provides = [ "hardware:model:dell" ]` |
+| User says | `tags = [ "craig" ]` | `requires = [ "users:craig" ]`, `provides = [ "users:craig" ]` |
 | Naming the modules | never possible — tags are a property query | implicit in what each module `provides` |
 | Extra vocabulary | tag catalogue, meta-tags, implications, `hasTag` | `provides`, `requires` |
 | Missing dependency | a module silently does not load | error naming the capability and the blocking `requires` |
@@ -245,11 +252,13 @@ capabilities exact names are exact and subtree selection is explicit via `:*` or
 audio module landed in the same configuration because two unrelated meta-tags happened to
 match. Here the model says `requires = [ "hardware:audio" ]` and the pairing is a fact
 anyone can read. A dependency nothing supplies is a build error naming it, rather than a
-module that quietly fails to load on one machine.
+module that quietly fails to load on one machine. Roots can participate in that pairing
+too by publishing their own capabilities.
 
 **The roots still decide what is wanted.** Nothing built during resolution can widen
 `requiredSet`. A module joins because it satisfies a requirement, and if it stops
-satisfying one it stops joining.
+satisfying one it stops joining. Roots also seed `provided`, so a host or user can
+publish facts like model, location, name, or profile for modules to depend on.
 
 **Which to choose.** Capabilities are a better fit when modules have hard dependencies on
 each other, or when the same module has to work with and without something — an editor on
@@ -266,4 +275,4 @@ character — "laptop", "headless", "desktop" — and you want broad sweeps by c
   false when the audio module offers `hardware:audio`.
 - **Names are case-sensitive.** `hardware:audio`, `hardware` and `Hardware` are unrelated.
 - **An empty `requires` on a host selects nothing.** Everything a configuration gets must
-  be reachable from a host or user requirement.
+  be reachable from a host or user requirement, or come from root `provides`.

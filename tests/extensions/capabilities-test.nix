@@ -97,7 +97,7 @@ let
         in
         builtins.length (find evalOne [ evalOne.config.substrate.hosts.h ]) == 2
         && !notPrefixCheck.valid
-        && lib.hasInfix "no module offers it" notPrefixCheck.message;
+        && lib.hasInfix "nothing offers it" notPrefixCheck.message;
     };
 
     # A `:**` requirement selects descendants of any depth
@@ -145,6 +145,43 @@ let
         in
         builtins.length found == 1
         && offers "programming" found
+        && (checkByName eval "capability-resolution").valid;
+    };
+
+    # Roots can provide capabilities that satisfy module requirements directly
+    rootProvidesCanSatisfyModules = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.hosts.h = {
+                users = [ "u" ];
+                requires = [
+                  "machine-specific"
+                  "user-specific"
+                ];
+                provides = [ "hardware:model:dell" ];
+              };
+              config.substrate.users.u = {
+                provides = [ "users:craig" ];
+              };
+              config.substrate.modules.machineSpecific = {
+                provides = [ "machine-specific" ];
+                requires = [ "hardware:model:dell" ];
+                nixos.machineSpecific = true;
+              };
+              config.substrate.modules.userSpecific = {
+                provides = [ "user-specific" ];
+                requires = [ "users:craig" ];
+                nixos.userSpecific = true;
+              };
+            }
+          ];
+          hostFound = find eval [ eval.config.substrate.hosts.h ];
+        in
+        offers "machine-specific" hostFound
+        && offers "user-specific" hostFound
+        && builtins.length hostFound == 2
         && (checkByName eval "capability-resolution").valid;
     };
 
@@ -224,7 +261,7 @@ let
         in
         throws (find eval [ eval.config.substrate.hosts.h ])
         && !check.valid
-        && lib.hasInfix "no module offers it" check.message;
+        && lib.hasInfix "nothing offers it" check.message;
     };
 
     # A capability that only enters the required set by being prefixed is never
@@ -339,7 +376,7 @@ let
         builtins.length (find evalDotted [ evalDotted.config.substrate.hosts.h ]) == 2
         # and under the default it selects nothing
         && !defaultCheck.valid
-        && lib.hasInfix "no module offers it" defaultCheck.message;
+        && lib.hasInfix "nothing offers it" defaultCheck.message;
     };
 
     # A capability alone does not make a module. Substrate decides a tree node
