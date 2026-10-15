@@ -7,7 +7,7 @@ Extensions add capabilities to substrate. Import only what you need.
 | Extension | Import Path | Description |
 |-----------|-------------|-------------|
 | `bubblewrap` | `substrateModules.bubblewrap` | Bubblewrap isolation via jail.nix |
-| `capabilities` | `substrateModules.capabilities` | Capability-based module selection via `provides`/`requires` (alternative to `tags`) |
+| `capabilities` | `substrateModules.capabilities` | Capability-based module selection via `provides`/`requires`, with explicit subtree wildcards (`:*`, `:**`) (alternative to `tags`) |
 | `includes` | `substrateModules.includes` | Explicit DAG-based module inclusion |
 | `home-manager` | `substrateModules.home-manager` | Home Manager configuration builder |
 | `nixos` | `substrateModules.nixos` | NixOS configuration builder |

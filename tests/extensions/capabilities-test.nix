@@ -66,13 +66,13 @@ let
         builtins.length found == 2 && offers "audio" found;
     };
 
-    # A requirement selects any capability it prefixes, on ':' boundaries
+    # A `:*` requirement selects exactly one capability segment
     prefixSelectsNestedCapability = {
       check =
         let
           evalOne = evalSubstrate [
             {
-              config.substrate.hosts.h.requires = [ "core" ];
+              config.substrate.hosts.h.requires = [ "core:*" ];
               config.substrate.modules.core.ssh = {
                 provides = [ "core:ssh" ];
                 nixos.ssh = true;
@@ -98,6 +98,27 @@ let
         builtins.length (find evalOne [ evalOne.config.substrate.hosts.h ]) == 2
         && !notPrefixCheck.valid
         && lib.hasInfix "no module offers it" notPrefixCheck.message;
+    };
+
+    # A `:**` requirement selects descendants of any depth
+    recursiveWildcardSelectsAllDescendants = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.hosts.h.requires = [ "core:**" ];
+              config.substrate.modules.core.ssh = {
+                provides = [ "core:ssh" ];
+                nixos.ssh = true;
+              };
+              config.substrate.modules.core.mcp.session = {
+                provides = [ "core:mcp:session" ];
+                nixos.session = true;
+              };
+            }
+          ];
+        in
+        builtins.length (find eval [ eval.config.substrate.hosts.h ]) == 2;
     };
 
     # A module that needs something nobody named is filtered out, and when a
@@ -213,7 +234,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.hosts.h.requires = [ "core" ];
+              config.substrate.hosts.h.requires = [ "core:*" ];
               config.substrate.modules.core.ssh = {
                 provides = [ "core:ssh" ];
                 requires = [ "kernel" ];
@@ -227,8 +248,8 @@ let
           ];
           found = find eval [ eval.config.substrate.hosts.h ];
         in
-        # core:ssh's module is filtered (nothing named kernel) but core is still
-        # satisfied by core:utils, so no error and the host still builds
+        # core:ssh's module is filtered (nothing named kernel) but core:* is
+        # still satisfied by core:utils, so no error and the host still builds
         builtins.length found == 1
         && offers "core:utils" found
         && (checkByName eval "capability-resolution").valid;
@@ -291,7 +312,7 @@ let
           evalDotted = evalSubstrate [
             {
               config.substrate.settings.capabilities.separator = ".";
-              config.substrate.hosts.h.requires = [ "core" ];
+              config.substrate.hosts.h.requires = [ "core.*" ];
               config.substrate.modules.core.ssh = {
                 provides = [ "core.ssh" ];
                 nixos.ssh = true;
@@ -305,7 +326,7 @@ let
           # Under the default separator a dotted name is a single flat name
           evalDefault = evalSubstrate [
             {
-              config.substrate.hosts.h.requires = [ "core" ];
+              config.substrate.hosts.h.requires = [ "core:*" ];
               config.substrate.modules.core.ssh = {
                 provides = [ "core.ssh" ];
                 nixos.ssh = true;
@@ -510,7 +531,7 @@ let
           eval = evalSubstrate [
             {
               config.substrate.hosts.h.requires = [
-                "core"
+                "core:*"
                 "core:apps"
               ];
               config.substrate.modules.core.utils = {
@@ -719,7 +740,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.hosts.h.requires = [ "core" ];
+              config.substrate.hosts.h.requires = [ "core:*" ];
               config.substrate.modules.core.utils = {
                 provides = [ "core:utils" ];
                 nixos.utils = true;
@@ -770,7 +791,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.hosts.h.requires = [ "core" ];
+              config.substrate.hosts.h.requires = [ "core:*" ];
               config.substrate.modules.core.utils = {
                 provides = [ "core:utils" ];
                 nixos.utils = true;

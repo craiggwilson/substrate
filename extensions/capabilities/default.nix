@@ -5,13 +5,11 @@ let
 
   finderName = "by-capabilities";
 
-  # Separates the levels of a capability name, for prefix selection only.
+  # Separates the levels of a capability name, for explicit wildcard selection.
   separator = config.substrate.settings.capabilities.separator;
 
-  # Capability names are flat strings matched by equality. A requirement also
-  # selects any capability it prefixes, so `core` selects `core:ssh` — but
-  # nothing infers the reverse: including a module that offers `core:ssh` never
-  # puts `core` into the provided set.
+  # Capability names are flat strings matched by equality. Wildcards are
+  # explicit: `:*` matches one segment and `:**` matches any depth.
   capabilityType = lib.types.listOf lib.types.nonEmptyStr;
 
   allClasses = [ "generic" ] ++ settings.supportedClasses;
@@ -37,12 +35,29 @@ let
 
   allModules = walk [ ] config.substrate.modules;
 
-  # Prefix matching exists for selection only, and only from requirement to
-  # capability. Matching is on separator boundaries so `programs` selects
-  # `programs:vscode` but not `programsvc`.
+  # Selection is exact by default. Wildcards are explicit: `:*` matches one
+  # separator-delimited segment and `:**` matches any depth.
   selects =
     requirement: capability:
-    capability == requirement || lib.hasPrefix "${requirement}${separator}" capability;
+    let
+      oneSegment = lib.hasSuffix "${separator}*" requirement;
+      recursive = lib.hasSuffix "${separator}**" requirement;
+      prefix =
+        if recursive then
+          lib.removeSuffix "**" requirement
+        else if oneSegment then
+          lib.removeSuffix "*" requirement
+        else
+          requirement;
+      remainder =
+        if builtins.stringLength capability < builtins.stringLength prefix then
+          ""
+        else
+          builtins.substring (builtins.stringLength prefix) (builtins.stringLength capability - builtins.stringLength prefix) capability;
+    in
+    capability == requirement
+    || (recursive && lib.hasPrefix prefix capability)
+    || (oneSegment && lib.hasPrefix prefix capability && remainder != "" && !lib.hasInfix separator remainder);
 
   requirementsOf =
     configs:
@@ -219,16 +234,17 @@ in
       type = lib.types.enum [ finderName ];
     };
 
-    # Separates the levels of a capability name, for prefix selection only.
+    # Separates the levels of a capability name, for wildcard selection only.
     settings.capabilities.separator = lib.mkOption {
       type = lib.types.nonEmptyStr;
       default = ":";
       description = ''
         The character separating the levels of a capability name. The default ":"
-        makes a requirement of `programs` select a module offering
-        `programs:vscode`; changing it to "." makes that pairing work on
-        `programs.vscode` instead. It affects selection only — capability names
-        are otherwise flat strings, and nothing is inferred from a suffix.
+        makes `programs:*` select one level like `programs:vscode`, and
+        `programs:**` select any depth like `programs:vscode:mcp`; changing it
+        to "." makes those pairings work on dotted names instead. It affects
+        selection only — capability names are otherwise flat strings, and exact
+        names never imply descendants.
       '';
     };
   };
@@ -249,8 +265,8 @@ in
           default = [ ];
           description = ''
             Capabilities this module offers. A requirement selects this module
-            when it names one of these, or any capability they prefix, so
-            `programs` selects a module offering `programs:vscode`.
+            when it names one of these exactly, or uses a wildcard that matches
+            one of them.
 
             Convention: a module that declares options should offer a capability
             for them, and modules that set those options should require it.

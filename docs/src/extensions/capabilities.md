@@ -23,7 +23,7 @@ Do not import this alongside the tags extension — both set `substrate.settings
 | `substrate.users.<name>.requires` | list of string | Capabilities this user needs |
 | `substrate.modules.<path>.provides` | list of string | Capabilities this module offers |
 | `substrate.modules.<path>.requires` | list of string | Capabilities this module needs |
-| `substrate.settings.capabilities.separator` | string | Character separating capability levels (default `:`) |
+| `substrate.settings.capabilities.separator` | string | Character separating capability levels used by `:*` and `:**` (default `:`) |
 
 ## The model
 
@@ -101,22 +101,21 @@ moving differently:
 Both sets grow monotonically and are bounded by the module set, so this converges and the
 result does not depend on visit order.
 
-### A requirement selects anything it prefixes
+### A requirement uses explicit wildcards
 
-`core` selects `core:ssh` and `core:networking` and anything else under it, on `:`-boundaries
-— `program` does not select `programsvc`. This is the *only* place prefixes do anything,
-and only in one direction. Including a module that offers `programs:vscode` does not put
-`programs` anywhere: there is no walking back up.
+`core` matches only `core`. `core:*` matches one level, so it selects `core:ssh` and
+`core:networking`. `core:**` matches any depth, so it also selects `core:mcp:session`.
+`program` does not select `programsvc`.
 
 The boundary character is configurable. Set `substrate.settings.capabilities.separator` to
-`.` and the pairing works on `programs.vscode` instead, with `:` no longer special:
+`.` and the wildcard matching works on `programs.vscode` instead, with `:` no longer special:
 
 ```nix
 substrate.settings.capabilities.separator = ".";
 ```
 
 It affects selection only. Capability names are otherwise flat strings, and nothing is
-inferred from a suffix.
+inferred from a suffix or missing wildcard.
 
 ### `requires` filters, it does not pull in
 
@@ -204,7 +203,7 @@ homeManager =
 
 If `programs:vscode` got included because something required `programming`, then
 `hasCapability "programs:vscode"` is `true` even though no root named it. It is `false`
-for `programs`, because prefixes are not walked backwards. A name in the required set that
+for `programs`, because exact names do not imply descendants. A name in the required set that
 nothing offers is also `false`, as is one only a filtered module would have provided.
 
 Because `provided` accumulates what included modules offer — every alias, not just the
@@ -227,20 +226,20 @@ Three checks:
 ## How this differs from tags
 
 Both answer "which modules belong in this configuration", and both use `:` in names. The
-resemblance is superficial in one important respect: **`:` is a hierarchy in tags, and in
-capabilities it only prefixes for selection.**
+resemblance is superficial in one important respect: **`:` is a hierarchy in tags, while in
+capabilities exact names are exact and subtree selection is explicit via `:*` or `:**`.**
 
 | | Tags | Capabilities |
 |---|---|---|
 | Declared with | `tags` on every module and host | `provides` / `requires` |
-| Matching | a module's tags intersect the host's | a requirement selects what a module offers |
-| `a:b` vs `a` | `a:b` implies `a`, both ways | `a` selects `a:b`; nothing implies `a` |
+| Matching | a module's tags intersect the host's | exact match, or explicit `:*` / `:**` wildcard |
+| `a:b` vs `a` | `a:b` implies `a`, both ways | `a` selects only `a`; `a:*` selects one level; `a:**` selects any depth |
 | Host says | `tags = [ "hardware:dell" ]` | `requires = [ "hardware:model:dell" "hardware:audio" ]` |
 | Naming the modules | never possible — tags are a property query | implicit in what each module `provides` |
 | Extra vocabulary | tag catalogue, meta-tags, implications, `hasTag` | `provides`, `requires` |
 | Missing dependency | a module silently does not load | error naming the capability and the blocking `requires` |
 | Two providers | both load | both load |
-| Category questions | yes — "every desktop module" | only via a `requires` name that prefixes them, e.g. `desktop` |
+| Category questions | yes — "every desktop module" | yes, via explicit subtree requirements like `desktop:*` or `desktop:**` |
 
 **A dependency is now named, not implied.** Under tags, a machine model module and the
 audio module landed in the same configuration because two unrelated meta-tags happened to
@@ -262,7 +261,7 @@ character — "laptop", "headless", "desktop" — and you want broad sweeps by c
 - **A capability alone does not make a module.** Substrate decides a tree node is a module
   by whether it has a class body (`generic`, `nixos`, or another supported class), not by
   whether it declares capabilities. A node with only `provides = [ … ]` is never selected.
-- **`hasCapability` is prefix-blind.** It answers for exactly what a module declared, so
+- **`hasCapability` is exact-only.** It answers for exactly what a module declared, so
   a query has to name a capability something actually offers. `hasCapability "audio"` is
   false when the audio module offers `hardware:audio`.
 - **Names are case-sensitive.** `hardware:audio`, `hardware` and `Hardware` are unrelated.
