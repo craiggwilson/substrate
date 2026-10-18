@@ -161,6 +161,10 @@ Or read it as plain Markdown under [docs/src](./docs/src/):
 nix flake check
 ```
 
+## Prior Arg
+
+- [Den](./docs/src/den-comparison.md) - How substrate differs from the Den framwork/ecosystem.
+
 ## License
 
 MIT - see [LICENSE](./LICENSE)

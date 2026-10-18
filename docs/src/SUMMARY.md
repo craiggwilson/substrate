@@ -32,3 +32,4 @@
 # Reference
 
 - [Option Reference](reference/options.md)
+- [Den Comparison](den-comparison.md)
