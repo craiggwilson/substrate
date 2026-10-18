@@ -62,22 +62,23 @@ let
         hasClass "homeManager";
     };
 
-    # Test 3: homeManagerModules option exists with extension
+    # Test 3: the homeManager.modules option exists with the extension
     homeManagerModulesOptionExists = {
       check =
         let
           eval = evalSubstrateWithHM [ ];
         in
-        eval.config.substrate.settings ? homeManagerModules;
+        eval.config.substrate.settings ? homeManager
+        && eval.config.substrate.settings.homeManager ? modules;
     };
 
-    # Test 4: homeManagerModules defaults to empty list
+    # Test 4: it defaults to an empty list
     homeManagerModulesDefaultEmpty = {
       check =
         let
           eval = evalSubstrateWithHM [ ];
         in
-        eval.config.substrate.settings.homeManagerModules == [ ];
+        eval.config.substrate.settings.homeManager.modules == [ ];
     };
 
     # Test 5: Module can have homeManager content with extension
@@ -153,13 +154,13 @@ let
         lib.elem "nixos" classes && lib.elem "homeManager" classes;
     };
 
-    # Test 9: core is implementation-agnostic (nixosModules only exists with the nixos extension)
+    # Test 9: core is implementation-agnostic (settings.nixos only exists with the nixos extension)
     coreHasNoNixosModules = {
       check =
         let
           eval = evalSubstrateBase [ ];
         in
-        !(eval.config.substrate.settings ? nixosModules);
+        !(eval.config.substrate.settings ? nixos);
     };
 
     # Test 10: contributors defaults to empty without the extension

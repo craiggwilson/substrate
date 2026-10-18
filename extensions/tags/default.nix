@@ -1,18 +1,20 @@
 { lib, config, ... }:
 let
   finderName = "by-tags";
-  rawTags = config.substrate.settings.tags;
+  rawTags = config.substrate.settings.tags.options;
+  separator = config.substrate.settings.tags.separator;
   slib = config.substrate.lib;
 
-  # Extracts parent prefixes from a hierarchical tag.
-  # e.g., "desktop:custom:niri" -> ["desktop", "desktop:custom"]
+  # Extracts parent prefixes from a hierarchical tag, splitting on the configured
+  # separator. With the default ":" that is, e.g.,
+  # "desktop:custom:niri" -> ["desktop", "desktop:custom"].
   parentPrefixes =
     tag:
     let
-      parts = lib.splitString ":" tag;
+      parts = lib.splitString separator tag;
       indices = lib.range 1 (builtins.length parts - 1);
     in
-    lib.map (i: lib.concatStringsSep ":" (lib.take i parts)) indices;
+    lib.map (i: lib.concatStringsSep separator (lib.take i parts)) indices;
 
   normalizedTags = lib.foldl' (
     acc: item:
@@ -114,19 +116,36 @@ in
         type = lib.types.enum [ finderName ];
       };
 
-      tags = lib.mkOption {
-        type = lib.types.listOf (
-          lib.types.either lib.types.str (lib.types.attrsOf (lib.types.listOf lib.types.str))
-        );
-        apply = list: lib.map (item: if builtins.isString item then { ${item} = [ ]; } else item) list;
-        description = ''
-          All the tags available for use. A list where each element can be:
-          - A simple string: "tag1" (tag with no implications)
-          - A metatag attrset: `{ "hardware:dell" = [ "laptop" "thunderbolt" ]; }`
-          When a host/user has a metatag, all implied tags are automatically included.
-          After apply, all elements are normalized to attrset format for merging.
-        '';
-        default = [ ];
+      tags = {
+        # Separates the levels of a hierarchical tag name. ":" by default, so
+        # "desktop:custom:niri" implies "desktop:custom" and "desktop". Changing
+        # it to "." makes "desktop.custom.niri" mean the same thing instead.
+        separator = lib.mkOption {
+          type = lib.types.nonEmptyStr;
+          default = ":";
+          description = ''
+            The character separating the levels of a hierarchical tag name. It
+            governs implication: a tag implies its parents, split on this. Tag
+            matching itself is a plain string-prefix test and ignores it.
+          '';
+        };
+
+        # Was `substrate.settings.tags` before this moved to make room for
+        # `separator` alongside it.
+        options = lib.mkOption {
+          type = lib.types.listOf (
+            lib.types.either lib.types.str (lib.types.attrsOf (lib.types.listOf lib.types.str))
+          );
+          apply = list: lib.map (item: if builtins.isString item then { ${item} = [ ]; } else item) list;
+          description = ''
+            All the tags available for use. A list where each element can be:
+            - A simple string: "tag1" (tag with no implications)
+            - A metatag attrset: `{ "hardware:dell" = [ "laptop" "thunderbolt" ]; }`
+            When a host/user has a metatag, all implied tags are automatically included.
+            After apply, all elements are normalized to attrset format for merging.
+          '';
+          default = [ ];
+        };
       };
     };
     users = lib.mkOption {

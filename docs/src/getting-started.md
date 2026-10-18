@@ -130,7 +130,7 @@ The tags extension provides flexible module inclusion based on tags:
 
   substrate = {
     # Declare available tags
-    settings.tags = [
+    settings.tags.options = [
       "core"
       "desktop"
       "laptop"
