@@ -507,6 +507,79 @@ let
         in
         target.config.test.curriedValue == "from-curry";
     };
+
+    # -- a node's own address ------------------------------------------------
+
+    # Every node knows the path it was declared at, which is what lets an
+    # includes entry be a reference to a node rather than a string naming one.
+    nodeCarriesItsFullPath = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.modules.programs.git.nixos = { };
+              config.substrate.modules.services.blueman.nixos = { };
+              config.substrate.modules.services.blueman.nested.deep.nixos = { };
+            }
+          ];
+          modules = eval.config.substrate.modules;
+        in
+        modules.programs.git.__path == "programs/git"
+        && modules.services.blueman.__path == "services/blueman"
+        && modules.services.blueman.nested.deep.__path == "services/blueman/nested/deep";
+    };
+
+    # Two nodes can share a name without sharing an address, which is the whole
+    # reason the address is the path and not the basename.
+    siblingNamesDoNotCollide = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.modules.programs.git.nixos = { };
+              config.substrate.modules.services.git.nixos = { };
+            }
+          ];
+          modules = eval.config.substrate.modules;
+        in
+        modules.programs.git.__path != modules.services.git.__path;
+    };
+
+    nodePathIsOverridable = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.modules.programs.git.nixos = { };
+            }
+            {
+              config.substrate.modules.programs.git.__path = lib.mkForce "elsewhere";
+            }
+          ];
+        in
+        eval.config.substrate.modules.programs.git.__path == "elsewhere";
+    };
+
+    # The tree, readable as a Nix reference from the module declaring it. This is
+    # a fixpoint: the argument is the tree the module is itself writing.
+    substrateModulesArgIsTheTree = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.settings.extraModuleOptions.marker = lib.mkOption {
+                type = lib.types.str;
+                default = "";
+              };
+            }
+            ({ substrateModules, ... }: {
+              substrate.modules.programs.git.marker = substrateModules.services.blueman.__path;
+              substrate.modules.services.blueman.nixos = { };
+            })
+          ];
+        in
+        eval.config.substrate.modules.programs.git.marker == "services/blueman";
+    };
   };
 in
 runTests "Modules Tests" tests

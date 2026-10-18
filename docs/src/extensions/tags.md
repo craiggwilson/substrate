@@ -1,6 +1,17 @@
 # Tags Extension
 
-Provides tag-based module filtering.
+Provides categorical, aspect-like module grouping and filtering.
+
+See [Includes](includes.md) for the sibling module-selection extension.
+
+`tags` groups modules by shared properties. Multiple modules can belong to the
+same grouping, and the finder includes the whole group.
+
+`includes` is the explicit graph-based alternative: name the modules directly
+and let the finder walk the graph.
+
+Both models can produce the same builds. The difference is whether you think in
+groups or in explicit inclusion paths.
 
 ### Import
 

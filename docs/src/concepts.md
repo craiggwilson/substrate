@@ -93,6 +93,10 @@ substrate.modules = {
 };
 ```
 
+Every node knows the path it was declared at, on an internal `__path` attribute.
+That is what lets another module name it as a Nix reference rather than as a
+string — see the `includes` extension for the spelling.
+
 ### Module Classes
 
 Each module can define configuration for different "classes":
@@ -230,13 +234,17 @@ Where:
 | Finder | Description |
 |--------|-------------|
 | `all` | Returns all modules (no filtering) |
-| `by-tags` | Filters modules by tag matching (requires tags extension) |
+| `by-tags` | Filters modules by tag matching (requires the tags extension) |
+| `by-includes` | Walks the includes graph from what a host or user names (requires the includes extension) |
 
 ### Setting the Default Finder
 
 ```nix
 substrate.settings.modulesFinder = "by-tags";  # or "all"
 ```
+
+Each finder extension sets this itself when imported, so two of them together
+are a conflicting-definition error rather than a silent choice.
 
 ## Settings
 

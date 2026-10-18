@@ -64,6 +64,10 @@ let
 
   hasClass = class: builtins.elem class settings.supportedClasses;
 
+  # The module tree, so a caller holding only a config can reach a module the way
+  # a host or user does, by reference rather than by path.
+  modules = config.substrate.modules;
+
   # Collect modules contributed for a given class, applying each matching
   # contributor to the build context. Builders call this with the class they
   # speak; contributions targeting other classes are ignored, so a
@@ -112,6 +116,7 @@ in
       contributionsFor
       hasClass
       resolveInput
+      modules
       ;
   };
 }

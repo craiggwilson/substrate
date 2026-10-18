@@ -417,6 +417,22 @@ let
         in
         !result.success;
     };
+
+    # The module tree, so anything holding only a config can reach a module the
+    # way a host or user does, by reference rather than by path.
+    modulesIsTheModuleTree = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.modules.programs.git.nixos = { };
+            }
+          ];
+          modules = eval.config.substrate.lib.modules;
+        in
+        modules.programs.git.__path == "programs/git"
+        && modules.programs.git.nixos == eval.config.substrate.modules.programs.git.nixos;
+    };
   };
 in
 runTests "Lib Tests" tests
