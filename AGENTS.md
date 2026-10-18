@@ -4,7 +4,7 @@ This document provides guidance for AI agents working with the substrate codebas
 
 ## Project Overview
 
-Substrate is a Nix module framework for building flakes with modular, extensible configuration management. It is **not** tied to any specific module inclusion strategy - the tag-based finder is just one implementation of the finder interface.
+Substrate is a Nix module framework for building flakes with modular, extensible configuration management. It is **not** tied to any specific module inclusion strategy — `tags` and `capabilities` are two independent implementations of the finder interface, and `substrate.settings.modulesFinder` selects which one a configuration uses. They are mutually exclusive, because both set that option.
 
 ## Project Structure
 
@@ -25,6 +25,7 @@ substrate/
 │   └── users.nix        # User configuration type
 ├── extensions/          # Optional extension modules
 │   ├── bubblewrap/      # Bubblewrap isolation via jail.nix (the bubblewrap contributor)
+│   ├── capabilities/    # Capability-based module selection (provides/requires)
 │   ├── home-manager/    # Home Manager configuration builder
 │   ├── nixos/           # NixOS configuration builder
 │   ├── overlays/        # Overlay management

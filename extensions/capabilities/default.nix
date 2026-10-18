@@ -1,0 +1,506 @@
+{ lib, config, ... }:
+let
+  inherit (config.substrate) settings;
+  slib = config.substrate.lib;
+
+  finderName = "by-capabilities";
+
+  # Separates the levels of a capability name, for explicit wildcard selection.
+  separator = config.substrate.settings.capabilities.separator;
+
+  # Capability names are flat strings matched by equality. Wildcards are
+  # explicit: `:*` matches one segment and `:**` matches any depth.
+  capabilityType = lib.types.listOf lib.types.nonEmptyStr;
+
+  allClasses = [ "generic" ] ++ settings.supportedClasses;
+  reservedNames = allClasses ++ lib.attrNames settings.extraModuleOptions;
+
+  hasSubstrateContent =
+    node: builtins.any (class: node ? ${class} && node.${class} != null) allClasses;
+
+  # Enumerate module nodes with their tree path. Core discards paths when it
+  # flattens the tree, so walk it here rather than change the core collection:
+  # paths are only needed for diagnostics, not for selection.
+  walk =
+    path: node:
+    let
+      children = lib.filterAttrs (n: v: (!builtins.elem n reservedNames) && builtins.isAttrs v) node;
+      childEntries = lib.mapAttrsToList (n: v: walk (path ++ [ n ]) v) children;
+      self = lib.optional (hasSubstrateContent node) {
+        path = lib.concatStringsSep "/" path;
+        inherit node;
+      };
+    in
+    self ++ lib.concatLists childEntries;
+
+  allModules = walk [ ] config.substrate.modules;
+
+  # Selection is exact by default. Wildcards are explicit: `:*` matches one
+  # separator-delimited segment and `:**` matches any depth.
+  selects =
+    requirement: capability:
+    let
+      oneSegment = lib.hasSuffix "${separator}*" requirement;
+      recursive = lib.hasSuffix "${separator}**" requirement;
+      prefix =
+        if recursive then
+          lib.removeSuffix "**" requirement
+        else if oneSegment then
+          lib.removeSuffix "*" requirement
+        else
+          requirement;
+      remainder =
+        if builtins.stringLength capability < builtins.stringLength prefix then
+          ""
+        else
+          builtins.substring (builtins.stringLength prefix) (
+            builtins.stringLength capability - builtins.stringLength prefix
+          ) capability;
+    in
+    capability == requirement
+    || (recursive && lib.hasPrefix prefix capability)
+    || (
+      oneSegment
+      && lib.hasPrefix prefix capability
+      && remainder != ""
+      && !lib.hasInfix separator remainder
+    );
+
+  requirementsOf =
+    configs:
+    slib.unique (lib.concatMap (cfg: if cfg == null then [ ] else (cfg.requires or [ ])) configs);
+
+  providedOf =
+    configs:
+    slib.unique (lib.concatMap (cfg: if cfg == null then [ ] else (cfg.provides or [ ])) configs);
+
+  # Whether this entry satisfies a requirement, i.e. the requirement selects
+  # something the entry offers. Requirement first, so `covered r` is a
+  # predicate over entries.
+  covered =
+    requirement: entry: builtins.any (cap: selects requirement cap) (entry.node.provides or [ ]);
+
+  # The gate for inclusion, and the one that never moves: the roots named it.
+  # Whatever happens during resolution cannot widen what is wanted, so a
+  # module whose offers are not reachable from requiredSet stays out no matter
+  # how much else gets built. This is what stops a chain of extensions from
+  # running away — admission always traces back to a requirement.
+  wants =
+    requiredSet: entry:
+    builtins.any (cap: lib.any (r: selects r cap) requiredSet) (entry.node.provides or [ ]);
+
+  # The gate that does move: an entry is admissible when its requirements are
+  # accounted for, and "accounted for" includes what included modules already
+  # provide. A module whose needs are nothing but already-provided capabilities
+  # becomes eligible once those are in the build.
+  admits =
+    requiredSet: provided: entry:
+    lib.all (r: lib.elem r requiredSet || builtins.elem r provided) (entry.node.requires or [ ]);
+
+  # Monotone fixpoint: included and provided only grow, both bounded by the
+  # module set, so this converges and the result does not depend on the order
+  # modules happen to be visited in.
+  resolveFrom =
+    requiredSet: initialProvided:
+    let
+      loop =
+        included: provided:
+        let
+          next = lib.filter (entry: wants requiredSet entry && admits requiredSet provided entry) allModules;
+          # Every pass recomputes from allModules, so `next` is always the whole
+          # set that satisfies both gates right now, never an increment. It can
+          # therefore only grow.
+          settled = builtins.length next == builtins.length included;
+        in
+        if settled then
+          {
+            inherit requiredSet;
+            # Tree order, not discovery order: the walk is sorted and stable, so
+            # module lists (and the imports built from them) do not shift with
+            # the iteration.
+            includedEntries = included;
+            included = map (e: e.node) included;
+            # Exactly what those modules declare. No prefix inference here, so
+            # hasCapability "programs" is false when only "programs:vscode" is
+            # offered.
+            providedCapabilities = provided;
+          }
+        else
+          # Recomputed from the whole of `next`, not just what this pass added,
+          # so `provided` never loses an alias the set already contained.
+          let
+            grown = slib.unique (lib.concatMap (e: e.node.provides or [ ]) next);
+          in
+          loop next (slib.unique (provided ++ grown));
+    in
+    loop [ ] initialProvided;
+
+  resolve =
+    configs:
+    let
+      expanded =
+        if builtins.length configs == 1 && (builtins.head configs) ? users then
+          configs ++ map (user: config.substrate.users.${user}) (builtins.head configs).users
+        else
+          configs;
+    in
+    resolveFrom (slib.unique (requirementsOf expanded ++ providedOf expanded)) (providedOf expanded);
+
+  # Diagnostics ask whether a requirement is satisfied *in the result*, which
+  # is not the same question as the admission gate above.
+  unmetRequirements =
+    resolution:
+    lib.filter (
+      r: !(builtins.any (cap: selects r cap) resolution.providedCapabilities)
+    ) resolution.requiredSet;
+
+  renderList = items: "[${lib.concatStringsSep ", " items}]";
+
+  # Two failure modes, told apart because they are fixed differently: nothing
+  # offers the capability (a name that matches no module at all), or every
+  # module that does was filtered out because it needs something unnamed.
+  describeProblems =
+    resolution:
+    let
+      entriesCovering =
+        r:
+        let
+          matching = lib.filter (covered r) allModules;
+        in
+        {
+          inherit matching;
+          unmetByThem = slib.unique (
+            lib.concatMap (
+              entry: lib.filter (req: !(builtins.elem req resolution.requiredSet)) (entry.node.requires or [ ])
+            ) matching
+          );
+        };
+    in
+    map (
+      r:
+      let
+        detail = entriesCovering r;
+      in
+      if detail.matching == [ ] then
+        "  Capability '${r}' is required but nothing offers it."
+      else
+        "  Capability '${r}' is offered by ${toString (builtins.length detail.matching)} module(s), all filtered out; they require ${renderList detail.unmetByThem}."
+    ) (unmetRequirements resolution);
+
+  renderProblems = lines: ''
+    substrate: capability resolution failed.
+
+    ${lib.concatStringsSep "\n\n" lines}
+
+    A module is included when it offers something a requirement selects and
+    needs nothing the build has not already provided. A requirement selects a
+    capability it prefixes, never the reverse. For the difference between
+    capabilities and tags, see docs/src/extensions/capabilities.md.
+  '';
+
+  # Roots for a builder context. A host build passes a null usercfg, in which
+  # case every user on the host contributes their own requirements.
+  requirementsForContext =
+    { hostcfg, usercfg }:
+    requirementsOf (
+      lib.optionals (hostcfg != null) [ hostcfg ]
+      ++ lib.optionals (usercfg != null) [ usercfg ]
+      ++ lib.optionals (usercfg == null && hostcfg != null) (
+        map (user: config.substrate.users.${user}) hostcfg.users
+      )
+    );
+
+  providedForContext =
+    { hostcfg, usercfg }:
+    providedOf (
+      lib.optionals (hostcfg != null) [ hostcfg ]
+      ++ lib.optionals (usercfg != null) [ usercfg ]
+      ++ lib.optionals (usercfg == null && hostcfg != null) (
+        map (user: config.substrate.users.${user}) hostcfg.users
+      )
+    );
+in
+{
+  options.substrate = {
+    hosts = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options = {
+            requires = lib.mkOption {
+              type = capabilityType;
+              default = [ ];
+              description = ''
+                Capabilities this host needs, unioned with those of every user
+                on the host. Naming a capability selects every module that
+                offers it. Each one has to end up covered by an included module;
+                a requirement nothing satisfies is a build error.
+              '';
+            };
+
+            provides = lib.mkOption {
+              type = capabilityType;
+              default = [ ];
+              description = ''
+                Capabilities this host provides to module resolution. They do
+                not select modules on their own, but they can satisfy module
+                requirements and show up in `hasCapability`.
+
+                Use this for host-local facts like the machine model, location,
+                or any other root capability you want modules to depend on.
+              '';
+            };
+          };
+        }
+      );
+    };
+
+    users = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options = {
+            requires = lib.mkOption {
+              type = capabilityType;
+              default = [ ];
+              description = ''
+                Capabilities this user needs, resolved together with the host's
+                own. A capability required only by a user is satisfied for every
+                configuration that user appears in.
+              '';
+            };
+
+            provides = lib.mkOption {
+              type = capabilityType;
+              default = [ ];
+              description = ''
+                Capabilities this user provides to module resolution. They do
+                not select modules on their own, but they can satisfy module
+                requirements and show up in `hasCapability`.
+
+                Use this for user-local facts like the user's name, profile, or
+                any other root capability you want modules to depend on.
+              '';
+            };
+          };
+        }
+      );
+    };
+
+    # No `description` or `default` here: core already supplies both, and
+    # redefining either makes lib/modules.nix reject the option outright. Only
+    # `type` widens the enum, the way the tags extension does.
+    settings.modulesFinder = lib.mkOption {
+      type = lib.types.enum [ finderName ];
+    };
+
+    # Separates the levels of a capability name, for wildcard selection only.
+    settings.capabilities.separator = lib.mkOption {
+      type = lib.types.nonEmptyStr;
+      default = ":";
+      description = ''
+        The character separating the levels of a capability name. The default ":"
+        makes `programs:*` select one level like `programs:vscode`, and
+        `programs:**` select any depth like `programs:vscode:mcp`; changing it
+        to "." makes those pairings work on dotted names instead. It affects
+        selection only — capability names are otherwise flat strings, and exact
+        names never imply descendants.
+      '';
+    };
+  };
+
+  config.substrate = {
+    moduleFinders.${finderName}.find =
+      cfgs:
+      let
+        resolution = resolve cfgs;
+        problems = describeProblems resolution;
+      in
+      if problems == [ ] then resolution.included else throw (renderProblems problems);
+
+    settings = {
+      extraModuleOptions = {
+        provides = lib.mkOption {
+          type = capabilityType;
+          default = [ ];
+          description = ''
+            Capabilities this module offers. A requirement selects this module
+            when it names one of these exactly, or uses a wildcard that matches
+            one of them.
+
+            Convention: a module that declares options should offer a capability
+            for them, and modules that set those options should require it.
+            That keeps the pairing explicit instead of relying on two
+            unrelated tags happening to land in the same configuration.
+          '';
+        };
+
+        requires = lib.mkOption {
+          type = capabilityType;
+          default = [ ];
+          description = ''
+            Capabilities this module needs. A host or user has to name each one,
+            or some already-included module has to provide it, before this module
+            is a candidate. One that needs something nothing supplies is filtered
+            out rather than failing the build. That is what lets a GUI tool and a
+            headless tool both offer `programming` while only the headless one is
+            included on a machine without a desktop.
+
+            Modules that must load together should offer the same capability
+            instead of requiring each other: a requirement is only ever a filter,
+            so relying on one to pull a sibling in works by accident.
+          '';
+        };
+      };
+
+      modulesFinder = finderName;
+
+      extraArgsGenerators = [
+        (args: {
+          # `args` carries build context beyond { hostcfg, usercfg } (inputs,
+          # pkgs, …); requirementsForContext wants exactly the two it reads.
+          # `args` carries build context beyond { hostcfg, usercfg } (inputs,
+          # pkgs, …); requirementsForContext wants exactly the two it reads.
+          hasCapability =
+            capability:
+            builtins.elem capability
+              (resolveFrom
+                (slib.unique (
+                  requirementsForContext {
+                    hostcfg = args.hostcfg or null;
+                    usercfg = args.usercfg or null;
+                  }
+                  ++ providedForContext {
+                    hostcfg = args.hostcfg or null;
+                    usercfg = args.usercfg or null;
+                  }
+                ))
+                (providedForContext {
+                  hostcfg = args.hostcfg or null;
+                  usercfg = args.usercfg or null;
+                })
+              ).providedCapabilities;
+        })
+      ];
+
+      checks =
+        let
+          resolutionCheck =
+            let
+              failing = lib.filter (h: unmetRequirements h.resolution != [ ]) (
+                lib.mapAttrsToList (hostname: hostcfg: {
+                  inherit hostname;
+                  resolution = resolve ([ hostcfg ] ++ (map (user: config.substrate.users.${user}) hostcfg.users));
+                }) config.substrate.hosts
+              );
+              # Bind the body outside the lambda: a string containing an
+              # interpolation that itself holds a string mis-braces the parser.
+              describeHost =
+                h:
+                let
+                  body = lib.concatStringsSep "\n" (describeProblems h.resolution);
+                in
+                "Host '${h.hostname}':\n${body}";
+            in
+            {
+              name = "capability-resolution";
+              valid = failing == [ ];
+              message =
+                if failing == [ ] then
+                  "Every host's capability requirements are covered by an included module"
+                else
+                  lib.concatStringsSep "\n\n" (map describeHost failing);
+            };
+
+          unusedCheck =
+            let
+              # Reported per module, not per capability. A module offering both
+              # "programs:vscodium" and "programming" and reached through
+              # "programming" is doing its job — the leaf name is a deliberate
+              # alias for targeting it directly, and flagging it would be noise.
+              includedPaths = slib.unique (
+                builtins.concatLists (
+                  map (
+                    hostcfg:
+                    (resolve ([ hostcfg ] ++ (map (user: config.substrate.users.${user}) hostcfg.users)))
+                    .includedEntries
+                  ) (builtins.attrValues config.substrate.hosts)
+                )
+              );
+              unusedEntries = lib.filter (e: !(builtins.elem e includedPaths)) allModules;
+              describeEntry =
+                e:
+                let
+                  offered = e.node.provides or [ ];
+                in
+                "  ${e.path}${if offered == [ ] then " (offers nothing)" else " offers ${renderList offered}"}";
+            in
+            {
+              name = "unused-modules";
+              valid = unusedEntries == [ ];
+              warn = true;
+              message =
+                if unusedEntries == [ ] then
+                  "Every module is included by some host"
+                else
+                  ''
+                    No host selects these modules:
+
+                    ${lib.concatStringsSep "\n" (map describeEntry unusedEntries)}
+
+                    Either something should require one of them, or the module is
+                    dead weight.
+                  '';
+            };
+
+          # A module requiring something only it provides. Satisfiable once a
+          # root names the capability, so it does not break resolution — but it
+          # usually means a name is wrong, and it silently masks that: the
+          # requirement is met by the module's own offer instead of by whatever
+          # was meant to supply it. A capability other modules also offer is
+          # not self-referential — an application offering and requiring the
+          # family that pulls it in is a legitimate shape.
+          selfReferenceCheck =
+            let
+              offeredBy = e: e.node.provides or [ ];
+              providersOf = lib.foldl' (
+                acc: e: lib.foldl' (acc': cap: acc' // { ${cap} = (acc'.${cap} or 0) + 1; }) acc (offeredBy e)
+              ) { } allModules;
+              soleProvider =
+                e:
+                let
+                  shared = lib.intersectLists (offeredBy e) (e.node.requires or [ ]);
+                in
+                lib.filter (cap: (providersOf.${cap} or 0) == 1) shared;
+              offenders = lib.filter (e: soleProvider e != [ ]) allModules;
+              describeEntry =
+                e:
+                let
+                  shared = lib.intersectLists (offeredBy e) (e.node.requires or [ ]);
+                in
+                "  ${e.path} requires ${renderList shared}, which only it provides.";
+            in
+            {
+              name = "self-referential-capabilities";
+              valid = offenders == [ ];
+              warn = true;
+              message =
+                if offenders == [ ] then
+                  "No module requires a capability only it provides"
+                else
+                  ''
+                    These modules require something only they provide:
+
+                    ${lib.concatStringsSep "\n" (map describeEntry offenders)}
+
+                    The requirement is satisfied by the module's own offer, so it
+                    never catches the case it was meant to.
+                  '';
+            };
+        in
+        [
+          resolutionCheck
+          unusedCheck
+          selfReferenceCheck
+        ];
+    };
+  };
+}

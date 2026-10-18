@@ -2,6 +2,13 @@
 
 Provides tag-based module filtering.
 
+> **Looking for the alternative?** The [capabilities extension](capabilities.md) selects
+> the same modules using `provides`/`requires` instead of tags. It enforces module
+> dependencies and fails the build on an unprovided capability. Broad category sweeps are
+> still supported, but they are explicit (`:*` for one level, `:**` for any depth).
+> The two use `:` in names with opposite meanings — compare them in [How this differs from tags](capabilities.md#how-this-differs-from-tags).
+> They are mutually exclusive; both set `substrate.settings.modulesFinder`.
+
 ### Import
 
 ```nix
@@ -59,7 +66,8 @@ substrate.settings.tags.separator = ".";
 
 The separator governs *implication* only. Module matching and `hasTag` are plain
 string-prefix tests and ignore it, so `hasTag "gui"` matches a `gui-something` tag
-either way.
+either way. (Unlike the [capabilities extension](capabilities.md), tag matching is not
+boundary-aware.)
 
 ### hasTag Function
 
