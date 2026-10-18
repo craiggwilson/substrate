@@ -7,6 +7,7 @@ Extensions add capabilities to substrate. Import only what you need.
 | Extension | Import Path | Description |
 |-----------|-------------|-------------|
 | `bubblewrap` | `substrateModules.bubblewrap` | Bubblewrap isolation via jail.nix |
+| `includes` | `substrateModules.includes` | Explicit DAG-based module inclusion |
 | `home-manager` | `substrateModules.home-manager` | Home Manager configuration builder |
 | `nixos` | `substrateModules.nixos` | NixOS configuration builder |
 | `overlays` | `substrateModules.overlays` | Overlay management |
@@ -16,6 +17,9 @@ Extensions add capabilities to substrate. Import only what you need.
 | `shells` | `substrateModules.shells` | Development shells |
 | `tags` | `substrateModules.tags` | Tag-based module filtering |
 | `wrappers` | `substrateModules.wrappers` | Declarative executable wrapping (`wrap` module argument) |
+
+`tags` and `includes` are mutually exclusive ways to select modules. Each sets
+`substrate.settings.modulesFinder`, so import only one.
 
 ## Composition Hooks
 
