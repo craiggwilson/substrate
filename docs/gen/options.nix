@@ -20,10 +20,11 @@ let
   extensionNames = [
     "home-manager"
     "bubblewrap"
+    "darwin"
+    "includes"
     "nixos"
     "overlays"
     "packages"
-    "published-modules"
     "secrets"
     "shells"
     "tags"
@@ -41,7 +42,15 @@ let
   options =
     (lib.evalModules {
       modules =
-        testLib.extendedCoreModules ++ map (name: import ../../extensions/${name}) loadedExtensions;
+        testLib.extendedCoreModules
+        ++ [
+          # Core modules the shared set does not carry. Publishing is one an
+          # extension reads a type off, so leaving it out breaks any extension
+          # that publishes modules.
+          ../../core/publish.nix
+          ../../core/explain.nix
+        ]
+        ++ map (name: import ../../extensions/${name}) loadedExtensions;
       specialArgs.inputs = stubInputs;
     }).options.substrate;
 
@@ -148,6 +157,7 @@ let
     "modules"
     "moduleFinders"
     "outputs"
+    "publish"
     "packages"
     "overlays"
     "lib"

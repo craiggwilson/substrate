@@ -7,6 +7,10 @@
   # Default dependency for the bubblewrap extension. Consumers rewire substrate's locked
   # inputs via inputs.substrate.inputs.jail-nix.follows or .url.
   inputs.jail-nix.url = "sourcehut:~alexdavid/jail.nix";
+  # Default dependency for the darwin extension. Consumers rewire substrate's locked
+  # inputs via inputs.substrate.inputs.nix-darwin.follows or .url.
+  inputs.nix-darwin.url = "github:nix-darwin/nix-darwin";
+  inputs.nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
   # Only used by substrate's own tests and docs: consumers bring their own
   # flake-parts, which the with-flake-parts builder takes from `inputs`.
   inputs.flake-parts.url = "github:hercules-ci/flake-parts";
@@ -139,11 +143,13 @@
           core-overlays-packages-test = mkTest "overlays-packages-test" ./tests/core/overlays-packages-test.nix;
           core-finders-test = mkTest "finders-test" ./tests/core/finders-test.nix;
           core-outputs-test = mkTest "outputs-test" ./tests/core/outputs-test.nix;
+          core-publish-test = mkTest "publish-test" ./tests/core/publish-test.nix;
+          core-explain-test = mkTest "explain-test" ./tests/core/explain-test.nix;
 
           # Extension tests
+          extensions-darwin-test = mkTestWith "darwin-test" { } ./tests/extensions/darwin-test.nix;
           extensions-includes-test = mkTest "includes-test" ./tests/extensions/includes-test.nix;
           extensions-tags-test = mkTest "tags-test" ./tests/extensions/tags-test.nix;
-          extensions-published-modules-test = mkTest "published-modules-test" ./tests/extensions/published-modules-test.nix;
           extensions-shells-test = mkTest "shells-test" ./tests/extensions/shells-test.nix;
           extensions-home-manager-test = mkTest "home-manager-test" ./tests/extensions/home-manager-test.nix;
           extensions-bubblewrap-test = mkTestWith "bubblewrap-test" {

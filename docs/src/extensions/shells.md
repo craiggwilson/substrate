@@ -13,7 +13,7 @@ imports = [ inputs.substrate.substrateModules.shells ];
 | Option | Type | Description |
 |--------|------|-------------|
 | `substrate.shells.internal` | attrs of entry | Shells substrate defines but does not publish |
-| `substrate.shells.publish` | attrs of entry | Shells exposed under `devShells` |
+| `substrate.publish.devShells` | attrs of entry | Shells exposed under `devShells` |
 
 A shell is named by its attribute key, not by a filename. An entry is either a
 **path** to a shell definition or a **function** of this context:
@@ -35,7 +35,7 @@ whichever form you use. A directory works too — importing one resolves its
 `default.nix` — which is what makes `shells/rust/` a shell named `rust`:
 
 ```nix
-substrate.shells.publish.rust = ./shells/rust;
+substrate.publish.devShells.rust = ./shells/rust;
 ```
 
 ### Output
@@ -45,7 +45,7 @@ substrate.shells.publish.rust = ./shells/rust;
 ### Usage
 
 ```nix
-substrate.shells.publish = {
+substrate.publish.devShells = {
   default = { pkgs, ... }:
     pkgs.mkShell {
       packages = with pkgs; [
@@ -80,7 +80,7 @@ same module tree as everything else:
 ```nix
 # shells/rust.nix
 _: {
-  substrate.shells.publish.rust = { pkgs, ... }: pkgs.mkShell { packages = with pkgs; [ rustc cargo ]; };
+  substrate.publish.devShells.rust = { pkgs, ... }: pkgs.mkShell { packages = with pkgs; [ rustc cargo ]; };
 }
 ```
 
@@ -98,7 +98,7 @@ The other route is a file that is not a module — a bare path, imported with th
 entry context:
 
 ```nix
-substrate.shells.publish.rust = ./shells/rust;
+substrate.publish.devShells.rust = ./shells/rust;
 ```
 
 A directory works too, since importing one resolves its `default.nix`, so

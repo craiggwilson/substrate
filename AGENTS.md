@@ -29,7 +29,7 @@ substrate/
 │   ├── nixos/           # NixOS configuration builder
 │   ├── overlays/        # Overlay management
 │   ├── packages/        # Package definitions
-│   ├── published-modules/ # Publishes your own modules under named outputs
+│   ├── darwin/           # nix-darwin configuration builder
 │   ├── secrets/         # Declarative secrets (SecretSpec)
 │   ├── shells/          # Development shells
 │   ├── tags/            # Tag-based module filtering
@@ -77,7 +77,9 @@ Extensions add capabilities by:
 1. Defining new options under `substrate.settings`
 2. Adding output builders to `substrate.outputs.global` (invoked once) or
    `substrate.outputs.perSystem` (invoked once per system); entries are
-   `{ build = fn; }` where fn receives the category's context
+   `{ build = fn; }` where fn receives the category's context. A value a
+   consumer is meant to read goes through `substrate.publish` instead — see
+   8.
 3. Registering new finders in `substrate.moduleFinders`
 4. Adding to `substrate.settings.supportedClasses`
 5. Pushing module contributors to `substrate.settings.contributors`, each entry
@@ -134,6 +136,24 @@ Extensions add capabilities by:
    definition with `lib.optionalAttrs (options.<path> ? <name>)` — a plain
    definition (or even `mkIf false`) against an undeclared option is an
    evaluation error.
+8. Publishing. Anything a consumer is meant to read goes through
+   `substrate.publish`, and core turns it into an output. An extension does not
+   write its own output builder: it declares a key under `substrate.publish`
+   with a type that fits, then registers where the key lands in
+   `substrate.settings.publishers` as `{ scope = "global" | "perSystem";
+   output; build; }`. `build` receives the standard output-builder context and
+   reads its key off `substrate`. One key is one namespace reaching one output
+   in one scope; a value belonging under two output names keeps its extra
+   output builder directly, the way any module can (published packages are the
+   case that does — `packages` output plus a `packages` overlay under
+   `overlays`). `substrate.publish` is a strict submodule, so assigning a key
+   whose extension is absent is an error naming the key rather than a value that
+   reaches no output. Core declares `substrate.publish.substrateModules` itself,
+   the marker for "my module tree is a library another configuration can
+   consume" — a consumer assigns it straight into `substrate.modules`, which
+   merges, so the tree *is* the namespace. Types for published module sets come
+   from `substrate.lib.publishedModuleType`; `deferredModule` alone rejects
+   function modules, which real module sets contain.
 
 Core must remain implementation-agnostic: hooks are named after core
 concepts (hosts, users, package sets), never after specific builders or

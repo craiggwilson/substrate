@@ -14,9 +14,9 @@
 - [Includes](extensions/includes.md)
 - [Home Manager](extensions/home-manager.md)
 - [NixOS](extensions/nixos.md)
+- [Darwin](extensions/darwin.md)
 - [Overlays](extensions/overlays.md)
 - [Packages](extensions/packages.md)
-- [Published Modules](extensions/published-modules.md)
 - [Secrets](extensions/secrets.md)
 - [Shells](extensions/shells.md)
 - [Tags](extensions/tags.md)
@@ -31,5 +31,6 @@
 
 # Reference
 
+- [Publishing](reference/publishing.md)
 - [Option Reference](reference/options.md)
 - [Den Comparison](den-comparison.md)

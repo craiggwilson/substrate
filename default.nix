@@ -24,12 +24,12 @@ in
   };
   substrateModules = {
     bubblewrap = import ./extensions/bubblewrap;
+    darwin = import ./extensions/darwin;
     includes = import ./extensions/includes;
     home-manager = import ./extensions/home-manager;
     nixos = import ./extensions/nixos;
     overlays = import ./extensions/overlays;
     packages = import ./extensions/packages;
-    published-modules = import ./extensions/published-modules;
     secrets = import ./extensions/secrets;
     shells = import ./extensions/shells;
     tags = import ./extensions/tags;

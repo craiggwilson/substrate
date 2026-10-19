@@ -7,6 +7,7 @@
 let
   settingsCfg = config.substrate.settings or { };
   packagesCfg = config.substrate.packages or { };
+  publishCfg = config.substrate.publish.packages or { };
 
   entryType = lib.types.either (lib.types.functionTo lib.types.raw) lib.types.path;
 
@@ -30,11 +31,10 @@ let
   mkPackages =
     final:
     lib.mapAttrs (_: entry: runEntry entry (entryArgs final)) (
-      (packagesCfg.internal or { }) // (packagesCfg.publish or { })
+      (packagesCfg.internal or { }) // publishCfg
     );
 
-  mkPublishedPackages =
-    final: lib.mapAttrs (_: entry: runEntry entry (entryArgs final)) (packagesCfg.publish or { });
+  mkPublishedPackages = final: lib.mapAttrs (_: entry: runEntry entry (entryArgs final)) publishCfg;
 
   mkPackagesDerivationsOnly = final: lib.filterAttrs (_: v: lib.isDerivation v) (mkPackages final);
 
@@ -51,12 +51,12 @@ let
     ${namespace} = (prev.${namespace} or { }) // (mkPublishedPackages final);
   };
 
-  hasEntries = (packagesCfg.internal or { }) != { } || (packagesCfg.publish or { }) != { };
+  hasEntries = (packagesCfg.internal or { }) != { } || publishCfg != { };
 
-  # Publication outputs are keyed off the published set alone. An internal-only
+  # The overlay output is keyed off the published set alone. An internal-only
   # configuration has nothing to publish, and emitting an empty overlay would
   # advertise a namespace that never gets filled.
-  hasPublishedEntries = (packagesCfg.publish or { }) != { };
+  hasPublishedEntries = publishCfg != { };
 in
 {
   options.substrate.settings.packages.namespace = lib.mkOption {
@@ -78,17 +78,19 @@ in
         pkgs is the package set being built. Not exposed under any output name.
       '';
     };
+  };
 
-    publish = lib.mkOption {
-      type = lib.types.attrsOf entryType;
-      default = { };
-      description = ''
-        Packages exposed to consumers, as a name-to-entry attribute set. An entry
-        is either a path to a package definition, which is callPackage'd, or a
-        function of { pkgs, lib, inputs, substrate }. These also land in the
-        package sets substrate builds, under the configured namespace.
-      '';
-    };
+  options.substrate.publish.packages = lib.mkOption {
+    type = lib.types.attrsOf entryType;
+    default = { };
+    description = ''
+      Packages exposed to consumers under the `packages` output, as a
+      name-to-entry attribute set. An entry is either a path to a package
+      definition, which is callPackage'd, or a function of
+      { pkgs, lib, inputs, substrate }. These also land in the package sets
+      substrate builds, under the configured namespace, and in the `overlays`
+      output as the `packages` overlay.
+    '';
   };
 
   # The library functions are published unconditionally on purpose. Any guard that
@@ -96,7 +98,7 @@ in
   # wrapped around this whole attrset — makes reading `substrate.lib` depend on
   # `substrate.packages`, which is circular for the natural way to populate the
   # entries:
-  #   config.substrate.packages.publish = config.substrate.lib.definitionsIn ./pkgs;
+  #   config.substrate.publish.packages = config.substrate.lib.definitionsIn ./pkgs;
   # That reads one while defining the other. So the guard goes on the nested
   # definitions only, where nothing reads them back.
   config.substrate = {
@@ -106,20 +108,21 @@ in
 
     settings.overlays = lib.mkIf hasEntries [ packagesOverlay ];
 
-    outputs = lib.mkIf hasPublishedEntries {
-      global.overlays = [
-        {
-          build = _: {
-            packages = publishedPackagesOverlay;
-          };
-        }
-      ];
-
-      perSystem.packages = [
-        {
-          build = { pkgs, ... }: mkPublishedPackagesDerivationsOnly pkgs;
-        }
-      ];
+    settings.publishers.packages = {
+      scope = "perSystem";
+      output = "packages";
+      build = { pkgs, ... }: mkPublishedPackagesDerivationsOnly pkgs;
     };
+
+    # The published set reaches two outputs in two scopes, and a publish key is
+    # one namespace reaching one output. The `packages` output is registered
+    # above; this overlay is the other half, so it stays a direct builder.
+    outputs.global.overlays = lib.mkIf hasPublishedEntries [
+      {
+        build = _: {
+          packages = publishedPackagesOverlay;
+        };
+      }
+    ];
   };
 }

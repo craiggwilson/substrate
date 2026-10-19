@@ -13,6 +13,7 @@ imports = [ inputs.substrate.substrateModules.nixos ];
 | Option | Type | Description |
 |--------|------|-------------|
 | `substrate.settings.nixos.modules` | list | External NixOS modules to include |
+| `substrate.publish.nixosModules` | attrs | NixOS modules published under the `nixosModules` output |
 | `substrate.hosts.<name>.usersOnly` | bool (default `false`) | Home-only host: no system built; users get host-scoped Home Manager configs |
 | `substrate.hosts.<name>.nixpkgsConfig` | attrs | Extra nixpkgs config for this host's package set |
 
@@ -28,6 +29,7 @@ modules is still honored (appended onto the package set).
 ### Output
 
 - `nixosConfigurations.<hostname>` - NixOS system configurations
+- `nixosModules` - whatever is assigned to `substrate.publish.nixosModules`
 
 ### Usage
 
@@ -47,4 +49,6 @@ substrate.modules.hardware.audio = {
 
 ---
 
-See the [extension index](index.md) for the composition hooks and the full list.
+See [Publishing](../reference/publishing.md) for how a publish key becomes an
+output, and the [extension index](index.md) for the composition hooks and the
+full list.

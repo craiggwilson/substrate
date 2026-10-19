@@ -13,26 +13,24 @@ imports = [ inputs.substrate.substrateModules.overlays ];
 | Option | Type | Description |
 |--------|------|-------------|
 | `substrate.overlays.internal` | list | Overlays applied to the package sets substrate builds, but not published |
-| `substrate.overlays.publish` | attrs of overlay | Named overlays exposed for external reuse |
+| `substrate.publish.overlays` | attrs of overlay | Named overlays exposed under the `overlays` output |
 
 `substrate.settings.overlays` is core: builders bake it into every package set
 substrate creates, so it exists whether or not this extension is loaded. The
-extension prepends `internal` and `publish` to it and publishes `publish` under
+extension prepends `internal` and the published set to it and republishes that set under
 the `overlays` output — import it when you want overlays published, not just
 applied.
 
 ### Usage
 
 ```nix
-substrate.overlays = {
-  internal = [
-    (final: prev: {
-      myPackage = prev.callPackage ./pkgs/my-package { };
-    })
-  ];
+substrate.overlays.internal = [
+  (final: prev: {
+    myPackage = prev.callPackage ./pkgs/my-package { };
+  })
+];
 
-  publish.default = inputs.some-flake.overlays.default;
-};
+substrate.publish.overlays.default = inputs.some-flake.overlays.default;
 
 substrate.settings.overlays = [
   (final: prev: {

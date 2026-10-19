@@ -104,9 +104,11 @@ let
       ) substrate.hosts
     );
 
-  # Integrates Home Manager into host configurations (e.g., NixOS).
-  # Registered as a nixos-class contribution so host builders need no
-  # knowledge of this extension.
+  # Integrates Home Manager into host configurations (e.g., NixOS, nix-darwin).
+  # Registered as a contribution per host class, so host builders need no
+  # knowledge of this extension. The body is identical for each; only the
+  # home-manager module that plugs it in differs, because NixOS and nix-darwin
+  # each ship their own.
   contributeToHosts =
     {
       inputs,
@@ -115,11 +117,11 @@ let
       hostname,
       hostcfg,
       userConfigs,
+      homeManagerModule,
       pkgs,
       ...
     }:
     let
-      homeManagerInput = slib.resolveInput "home-manager" coreInputs;
 
       # User classes are consumed in both paths; NixOS-embedded users are user
       # configurations too, so homeManager-class contributions reach them here.
@@ -137,7 +139,7 @@ let
         };
     in
     [
-      homeManagerInput.nixosModules.home-manager
+      homeManagerModule
       {
         home-manager =
           let
@@ -187,6 +189,28 @@ let
           };
       }
     ];
+
+  # One body, two host classes. Each entry resolves the module that plugs Home
+  # Manager into that class; nothing downstream needs to know the difference.
+  #
+  # Resolved here rather than at the point of use so a configuration with
+  # neither host class imported never reaches `resolveInput` for a role it has
+  # no use for.
+  homeManagerModule =
+    class: coreInputs:
+    let
+      homeManagerInput = slib.resolveInput "home-manager" coreInputs;
+    in
+    if class == "nixos" then
+      homeManagerInput.nixosModules.home-manager
+    else
+      homeManagerInput.darwinModules.home-manager;
+
+  toNixos =
+    ctx: contributeToHosts (ctx // { homeManagerModule = homeManagerModule "nixos" ctx.coreInputs; });
+
+  toDarwin =
+    ctx: contributeToHosts (ctx // { homeManagerModule = homeManagerModule "darwin" ctx.coreInputs; });
 in
 {
   options.substrate.settings.homeManager.modules = lib.mkOption {
@@ -199,14 +223,35 @@ in
     default = [ ];
   };
 
+  # Declared here rather than by a publishing extension: the type that fits
+  # home-manager modules is this extension's to state.
+  options.substrate.publish.homeManagerModules = lib.mkOption {
+    type = lib.types.attrsOf slib.publishedModuleType;
+    default = { };
+    description = ''
+      home-manager modules exposed to consumers under the `homeManagerModules`
+      output. Was `substrate.modules.publish.homeManagerModules`.
+    '';
+  };
+
   config.substrate = {
     settings.supportedClasses = [ "homeManager" ];
     settings.contributors = [
       {
         class = "nixos";
-        contribute = contributeToHosts;
+        contribute = toNixos;
+      }
+      {
+        class = "darwin";
+        contribute = toDarwin;
       }
     ];
+
+    settings.publishers.homeManagerModules = {
+      scope = "global";
+      output = "homeManagerModules";
+      build = { substrate, ... }: substrate.publish.homeManagerModules;
+    };
 
     outputs.global.homeConfigurations = [
       {
