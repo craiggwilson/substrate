@@ -2,7 +2,7 @@
 # package file: it assigns an entry, exactly as any other module assigns an
 # option.
 _: {
-  substrate.packages.publish.module-entry =
+  config.substrate.publish.packages.module-entry =
     { pkgs, ... }:
     pkgs.runCommand "module-entry" { } ''
       mkdir -p $out

@@ -92,5 +92,50 @@
         neither side needs to know about the other.
       '';
     };
+
+    publishers = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options = {
+            scope = lib.mkOption {
+              type = lib.types.enum [
+                "global"
+                "perSystem"
+              ];
+              description = ''
+                Whether the output is built once or once per system. Global
+                outputs receive { inputs, coreInputs, substrate }; per-system
+                outputs also receive { pkgs, system }.
+              '';
+            };
+
+            output = lib.mkOption {
+              type = lib.types.str;
+              description = "The output name this key is published under.";
+            };
+
+            build = lib.mkOption {
+              type = lib.types.functionTo lib.types.raw;
+              description = ''
+                Function producing the value the output carries. It reads the
+                key off `substrate.publish`, so a publisher never closes over
+                config. Receives the same context an output builder does.
+              '';
+            };
+          };
+        }
+      );
+      default = { };
+      description = ''
+        Named things this configuration publishes. Each entry turns one key of
+        `substrate.publish` into one output; core walks the registry and creates
+        the output builders, so an extension publishes by declaring its key and
+        registering it here rather than by writing an output builder itself.
+
+        A key reaches exactly one output. A value that belongs under two output
+        names -- published packages, which also contribute an overlay -- keeps
+        its extra output builder directly, the way any module can.
+      '';
+    };
   };
 }

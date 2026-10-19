@@ -1,4 +1,9 @@
-{ lib, config, ... }:
+{
+  lib,
+  config,
+  options,
+  ...
+}:
 let
   inherit (config.substrate) settings;
 
@@ -49,6 +54,37 @@ let
       childModules = lib.flatten (lib.mapAttrsToList (_: collectSubstrateModules) childAttrs);
     in
     if hasSubstrateContent module then [ module ] ++ childModules else childModules;
+
+  # A node is live when it carries class content of its own or something below
+  # it does. Reported dead paths are the deepest nodes of each dead region, so
+  # the path names the key the value was actually written at: a module written
+  # for a class nobody registered comes back as "programs/zfs/darwin" rather
+  # than the grouping node above it.
+  classify =
+    node:
+    let
+      childAttrs = lib.filterAttrs (n: v: (!builtins.elem n reservedNames) && builtins.isAttrs v) node;
+      classified = lib.mapAttrsToList (_: classify) childAttrs;
+      live = hasSubstrateContent node || builtins.any (c: c.live) classified;
+    in
+    {
+      inherit live;
+      dead = if live || classified != [ ] then lib.concatMap (c: c.dead) classified else [ node.__path ];
+    };
+
+  # Paths no finder can ever select: tree nodes with no supported-class content
+  # anywhere beneath them. The tree's freeform type cannot tell an unregistered
+  # class from a legitimate grouping node -- `modules.foo.darwin` and
+  # `modules.foo.programs` are the same shape -- so this reports reachability
+  # rather than trying to name the mistake. A grouping node above a live module
+  # is never reported; only a subtree with nothing buildable under it is.
+  unreachableModulePaths =
+    node:
+    lib.concatMap (c: c.dead) (
+      lib.mapAttrsToList (_: classify) (
+        lib.filterAttrs (n: v: (!builtins.elem n reservedNames) && builtins.isAttrs v) node
+      )
+    );
 in
 {
   options.substrate = {
@@ -66,13 +102,21 @@ in
     };
   };
 
-  # The "all" finder returns all modules regardless of the configs passed
-  config.substrate.moduleFinders.all = {
-    find = _cfgs: collectSubstrateModules config.substrate.modules;
-  };
+  config = lib.mkMerge [
+    {
+      # The "all" finder returns all modules regardless of the configs passed.
+      substrate.moduleFinders.all = {
+        find = _cfgs: collectSubstrateModules config.substrate.modules;
+      };
 
-  # The module tree, readable as a Nix reference, so a host or user can name the
-  # module it means instead of spelling its path. Declared after the tree itself
-  # because it is the tree's own value, which the module system resolves lazily.
-  config._module.args.substrateModules = config.substrate.modules;
+      # The module tree, readable as a Nix reference, so a host or user can name
+      # the module it means instead of spelling its path. Declared after the tree
+      # itself because it is the tree's own value, which the module system
+      # resolves lazily.
+      _module.args.substrateModules = config.substrate.modules;
+    }
+    (lib.optionalAttrs (options.substrate ? lib) {
+      substrate.lib.unreachableModulePaths = unreachableModulePaths;
+    })
+  ];
 }

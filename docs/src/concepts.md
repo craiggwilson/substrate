@@ -246,6 +246,45 @@ substrate.settings.modulesFinder = "by-tags";  # or "all"
 Each finder extension sets this itself when imported, so two of them together
 are a conflicting-definition error rather than a silent choice.
 
+### Where Does My Configuration Land?
+
+A finder is a function from the host and user configurations to a list of
+module tree nodes, and nothing about that is observable from outside substrate:
+it runs inside a builder, its result goes straight into `nixosSystem`, and the
+only symptom of a module that did not land is a missing option somewhere else.
+
+The `explain` output answers it. It runs the same finder over the same arguments
+a builder would and reports what came back, keyed by the address every tree node
+carries:
+
+```console
+$ nix eval .#explain --json | jq '.classes.nixos'
+{
+  "igloo": {
+    "igloo": [ "programs/git", "services/blueman" ],
+    "igloo+users": [ "programs/git", "services/blueman" ],
+    "igloo/alice": [ "programs/git", "services/blueman", "programs/starship" ]
+  }
+}
+```
+
+Three scopes per host, because a class builder makes three kinds of call:
+
+| Scope | Finder called with |
+|-------|-------------------|
+| `<host>` | `[ host ]` |
+| `<host>+users` | `[ host ] ++ all its users` |
+| `<host>/<user>` | `[ host, user ]` |
+
+The second and third are different calls, not approximations of each other — a
+conditional that looks at one user sees a different list under each, which is
+the usual reason a module lands where nobody expected.
+
+`available` sits alongside `classes`, listing everything the finder could have
+returned. The difference between the two is what the finder filtered out, which
+is otherwise invisible. `modulesFinder` names the selection model that produced
+the answer.
+
 ## Settings
 
 Global settings control substrate behavior:
@@ -273,8 +312,7 @@ substrate.settings = {
   contributors = [ { class = "nixos"; contribute = ...; } ... ];
 
   # Overlays applied to every package set substrate creates. Extensions push
-  # into this (e.g. the packages extension adds its own overlay here), and the
-  # overlays extension prepends its `internal` and `publish` entries
+  # into this (e.g. the packages extension adds its own overlay here)
   overlays = [ (final: prev: { ... }) ];
 
   # Configuration validation checks, run by builders that support them
@@ -284,8 +322,9 @@ substrate.settings = {
 
 `settings` is the core vocabulary; individual extensions declare their own keys
 in it. Extensions keep their own inputs in their own namespaces —
-`substrate.packages.publish`, `substrate.shells.publish`,
-`substrate.modules.publish` — rather than under `settings`. For the exhaustive
+`substrate.packages`, `substrate.shells` — rather than under
+`settings`. What a consumer is meant to read goes under `substrate.publish`,
+which is core: see [Publishing](reference/publishing.md). For the exhaustive
 list of every option and which file declares it, see the
 [option reference](reference/options.md).
 

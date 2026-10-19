@@ -40,7 +40,7 @@ runTests "Shells Extension Tests" {
       let
         result = mkRaw [
           {
-            substrate.shells.publish.hello =
+            config.substrate.publish.devShells.hello =
               { pkgs, ... }:
               pkgs.mkShell {
                 packages = [ pkgs.hello ];
@@ -59,7 +59,7 @@ runTests "Shells Extension Tests" {
       let
         result = mkRaw [
           {
-            substrate.shells.publish.dev = ./fixtures/tree/shells/dev;
+            config.substrate.publish.devShells.dev = ./fixtures/tree/shells/dev;
           }
         ];
       in
@@ -72,7 +72,7 @@ runTests "Shells Extension Tests" {
       let
         result = mkRaw [
           {
-            substrate.shells.publish.ctx =
+            config.substrate.publish.devShells.ctx =
               {
                 pkgs,
                 system,
@@ -121,7 +121,7 @@ runTests "Shells Extension Tests" {
       let
         result = mkRaw [
           (_: {
-            substrate.shells.publish = testLib.definitionsIn ./fixtures/tree/shells;
+            config.substrate.publish.devShells = testLib.definitionsIn ./fixtures/tree/shells;
           })
         ];
       in

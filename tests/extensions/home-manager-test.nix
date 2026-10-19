@@ -39,6 +39,7 @@ let
     outPath = pkgs.path;
     lib.homeManagerConfiguration = args: { inherit (args) extraSpecialArgs; };
     nixosModules.home-manager = { };
+    darwinModules.home-manager = { };
   };
 
   tests = {
@@ -172,14 +173,17 @@ let
         eval.config.substrate.settings.contributors == [ ];
     };
 
-    # Test 11: home-manager extension pushes one nixos-class contributor
-    homeManagerPushesNixosContributor = {
+    # Test 11: home-manager extension pushes one host-class contributor per host class.
+    homeManagerPushesHostContributors = {
       check =
         let
           eval = evalSubstrateWithHM [ ];
-          entries = eval.config.substrate.settings.contributors;
+          classes = map (e: e.class) eval.config.substrate.settings.contributors;
         in
-        lib.length entries == 1 && builtins.head entries ? class;
+        classes == [
+          "nixos"
+          "darwin"
+        ];
     };
 
     # Test 12: contributionsFor "nixos" produces a home-manager module per user

@@ -26,8 +26,9 @@ let
           message = "FAIL: check returned false";
         }
     else
-      # The error travels in `value` on failure, and it is the only thing that
-      # says *why* a check could not be evaluated.
+      # No message here: since Nix 2.35 `tryEval` reports failure as
+      # `{ success = false; value = false; }`, so the error text is no longer
+      # available to interpolate. Force `test.check` directly to see it.
       {
         inherit name;
         success = false;

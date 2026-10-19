@@ -102,7 +102,7 @@ let
       system.stateVersion = "25.11";
     };
 
-    substrate.overlays.publish.greeting = _final: _prev: {
+    substrate.publish.overlays.greeting = _final: _prev: {
       greeting = "hi";
     };
 
@@ -110,7 +110,7 @@ let
     # the cheapest place to observe what the builder baked into it. Each probe
     # is its own entry: the packages output keeps derivations only, so a nested
     # attrset of them would be dropped.
-    substrate.packages.publish = {
+    substrate.publish.packages = {
       greet =
         {
           pkgs,
@@ -139,7 +139,7 @@ let
         pkgs.writeText "published" (if pkgs.custom ? greet then "applied" else "missing");
     };
 
-    substrate.shells.publish.default =
+    substrate.publish.devShells.default =
       {
         pkgs,
         ...

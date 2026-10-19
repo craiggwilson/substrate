@@ -9,13 +9,15 @@ let
 
   # These tests exercise the overlays and packages extensions, which are not
   # part of the shared core module set. The packages extension reads `inputs`,
-  # which both builders supply, so the harness passes a stub.
+  # which both builders supply, so the harness passes a stub. Both publish keys,
+  # so core/publish.nix has to be in the set alongside them.
   evalSubstrate =
     extraModules:
     lib.evalModules {
       modules =
         testLib.coreModules
         ++ [
+          ../../core/publish.nix
           ../../extensions/overlays
           ../../extensions/packages
         ]
@@ -31,8 +33,8 @@ let
           eval = evalSubstrate [ ];
         in
         eval.config.substrate.settings.overlays == [ ]
-        && eval.config.substrate.overlays.internal == [ ]
-        && eval.config.substrate.overlays.publish == { };
+        && eval.config.substrate.overlays == [ ]
+        && eval.config.substrate.publish.overlays == { };
     };
 
     # Test 2: Custom overlays can be added
@@ -41,14 +43,14 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.overlays.internal = [
+              config.substrate.overlays = [
                 (_final: _prev: { testPkg = null; })
               ];
             }
           ];
         in
         lib.length eval.config.substrate.settings.overlays == 1
-        && lib.length eval.config.substrate.overlays.internal == 1;
+        && lib.length eval.config.substrate.overlays == 1;
     };
 
     # Test 3: Multiple overlays can be added
@@ -56,13 +58,13 @@ let
       check =
         let
           eval = evalSubstrate [
-            { config.substrate.overlays.internal = [ (_final: _prev: { }) ]; }
-            { config.substrate.overlays.publish.default = _final: _prev: { }; }
+            { config.substrate.overlays = [ (_final: _prev: { }) ]; }
+            { config.substrate.publish.overlays.default = _final: _prev: { }; }
           ];
         in
         lib.length eval.config.substrate.settings.overlays == 2
-        && lib.length eval.config.substrate.overlays.internal == 1
-        && eval.config.substrate.overlays.publish ? default;
+        && lib.length eval.config.substrate.overlays == 1
+        && eval.config.substrate.publish.overlays ? default;
     };
 
     # Test 4: Overlays in settings can be applied
@@ -71,7 +73,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.overlays.internal = [
+              config.substrate.overlays = [
                 (_final: _prev: { test = true; })
               ];
             }
@@ -90,7 +92,7 @@ let
         let
           eval = evalSubstrate [ ];
         in
-        eval.config.substrate.packages.internal == { } && eval.config.substrate.packages.publish == { };
+        eval.config.substrate.packages == { } && eval.config.substrate.publish.packages == { };
     };
 
     # Test 6: Package namespace can be set
@@ -112,7 +114,7 @@ let
           eval = evalSubstrate [
             {
               config.substrate.settings.packages.namespace = "demo";
-              config.substrate.packages.publish.hello =
+              config.substrate.publish.packages.hello =
                 { pkgs, ... }:
                 pkgs.callPackage ./fixtures/hello-package.nix { };
             }
@@ -130,7 +132,7 @@ let
           eval = evalSubstrate [
             {
               config.substrate.settings.packages.namespace = "demo";
-              config.substrate.packages.publish.hello = ./fixtures/hello-package.nix;
+              config.substrate.publish.packages.hello = ./fixtures/hello-package.nix;
             }
           ];
           built = (builtins.head eval.config.substrate.settings.overlays) pkgs pkgs;
@@ -147,7 +149,7 @@ let
           eval = evalSubstrate [
             (_: {
               config.substrate.settings.packages.namespace = "demo";
-              config.substrate.packages.publish = testLib.definitionsIn ../extensions/fixtures/tree/pkgs;
+              config.substrate.publish.packages = testLib.definitionsIn ../extensions/fixtures/tree/pkgs;
             })
           ];
           built = (builtins.head eval.config.substrate.settings.overlays) pkgs pkgs;
@@ -174,17 +176,17 @@ let
         built.custom ? module-entry && built.custom ? other-module-entry;
     };
 
-    # Test 8: An internal package reaches substrate's own package sets but not
+    # Test 8: A local package reaches substrate's own package sets but not
     # the published overlay.
-    internalPackageIsNotPublished = {
+    localPackageIsNotPublished = {
       check =
         let
           eval = evalSubstrate [
             {
-              config.substrate.packages.internal.only =
+              config.substrate.packages.only =
                 { pkgs, ... }:
                 pkgs.callPackage ./fixtures/hello-package.nix { };
-              config.substrate.packages.publish.shown =
+              config.substrate.publish.packages.shown =
                 { pkgs, ... }:
                 pkgs.callPackage ./fixtures/hello-package.nix { };
             }
@@ -203,19 +205,19 @@ let
         && !publishedBuilt.custom ? only;
     };
 
-    # Test 8b: An internal package must not reach the packages output either.
+    # Test 8b: A local package must not reach the packages output either.
     # The overlay and the output are separate paths, and the output is what a
     # flake consumer sees, so a package excluded from one has to be excluded
     # from both.
-    internalPackageIsNotInPackagesOutput = {
+    localPackageIsNotInPackagesOutput = {
       check =
         let
           eval = evalSubstrate [
             {
-              config.substrate.packages.internal.only =
+              config.substrate.packages.only =
                 { pkgs, ... }:
                 pkgs.callPackage ./fixtures/hello-package.nix { };
-              config.substrate.packages.publish.shown =
+              config.substrate.publish.packages.shown =
                 { pkgs, ... }:
                 pkgs.callPackage ./fixtures/hello-package.nix { };
             }
@@ -228,24 +230,26 @@ let
         builtins.isAttrs perSystemPkgs && perSystemPkgs ? shown && !perSystemPkgs ? only;
     };
 
-    # Test 8c: An internal-only configuration publishes nothing at all. The
-    # overlay would carry an empty namespace, which advertises a surface that
-    # never gets filled, so it should not be emitted.
-    internalOnlyPackagesPublishNothing = {
+    # Test 8c: A local-only configuration publishes nothing. The outputs exist
+    # -- a registered key always produces one -- but they carry nothing: the
+    # packages output is empty, and no overlay entry offers a `packages` key, so
+    # a consumer never sees an empty namespace advertised.
+    localOnlyPackagesPublishNothing = {
       check =
         let
           eval = evalSubstrate [
             {
-              config.substrate.packages.internal.only =
+              config.substrate.packages.only =
                 { pkgs, ... }:
                 pkgs.callPackage ./fixtures/hello-package.nix { };
             }
           ];
+          publishedPackages = (builtins.head eval.config.substrate.outputs.perSystem.packages).build {
+            inherit pkgs;
+            inherit lib;
+          };
         in
-        # The perSystem packages path is simply absent when nothing is published.
-        !(eval.config.substrate.outputs ? perSystem && eval.config.substrate.outputs.perSystem ? packages)
-        # And no published-overlay entry offers a `packages` key, so a consumer
-        # never sees an empty namespace advertised under overlays.
+        publishedPackages == { }
         && lib.all (
           entry:
           !(entry.build {
@@ -254,20 +258,20 @@ let
           })
             ? packages
         ) eval.config.substrate.outputs.global.overlays
-        # The internal package still reaches the package sets substrate builds.
+        # The local package still reaches the package sets substrate builds.
         && lib.length eval.config.substrate.settings.overlays == 1;
     };
 
     # Test 8: Internal overlays and published overlays are separated
-    internalAndPublishedPackages = {
+    localAndPublishedPackages = {
       check =
         let
           eval = evalSubstrate [
             {
-              config.substrate.overlays.internal = [
+              config.substrate.overlays = [
                 (_final: _prev: { internalMarker = true; })
               ];
-              config.substrate.overlays.publish.default = _final: _prev: {
+              config.substrate.publish.overlays.default = _final: _prev: {
                 publishedMarker = true;
               };
             }
@@ -287,12 +291,12 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.overlays.internal = [
+              config.substrate.overlays = [
                 (_final: _prev: { a = 1; })
               ];
             }
             {
-              config.substrate.overlays.publish.b = _final: _prev: { b = 2; };
+              config.substrate.publish.overlays.b = _final: _prev: { b = 2; };
             }
           ];
         in

@@ -7,12 +7,12 @@ Extensions add capabilities to substrate. Import only what you need.
 | Extension | Import Path | Description |
 |-----------|-------------|-------------|
 | `bubblewrap` | `substrateModules.bubblewrap` | Bubblewrap isolation via jail.nix |
+| `darwin` | `substrateModules.darwin` | nix-darwin configuration builder |
 | `includes` | `substrateModules.includes` | Explicit DAG-based module inclusion |
 | `home-manager` | `substrateModules.home-manager` | Home Manager configuration builder |
 | `nixos` | `substrateModules.nixos` | NixOS configuration builder |
 | `overlays` | `substrateModules.overlays` | Overlay management |
 | `packages` | `substrateModules.packages` | Package definitions |
-| `published-modules` | `substrateModules.published-modules` | Publishes your own modules under named outputs |
 | `secrets` | `substrateModules.secrets` | Declarative secrets via SecretSpec |
 | `shells` | `substrateModules.shells` | Development shells |
 | `tags` | `substrateModules.tags` | Tag-based module filtering |
@@ -20,6 +20,10 @@ Extensions add capabilities to substrate. Import only what you need.
 
 `tags` and `includes` are mutually exclusive ways to select modules. Each sets
 `substrate.settings.modulesFinder`, so import only one.
+
+Extensions do not publish their own outputs. They declare a key under
+`substrate.publish` and register where it lands; see
+[Publishing](../reference/publishing.md).
 
 ## Composition Hooks
 
@@ -30,6 +34,7 @@ builders without either side referencing the other:
 |--------|-----------------------------------|-------------|
 | `substrate.settings.extraArgsGenerators` | `{ hostcfg, usercfg, inputs, pkgs }` | All module builds — merged results become module arguments |
 | `substrate.settings.contributors` | per-entry class: host classes `{ inputs, substrate, hostname, hostcfg, userConfigs, pkgs }`, user classes `{ inputs, substrate, userName, usercfg, pkgs }` | Only the builder that speaks the entry's `class` (e.g., `nixos` extension for `"nixos"`) |
+| `substrate.settings.publishers` | the standard output-builder context: `{ inputs, coreInputs, substrate }`, plus `{ pkgs, system }` when the entry is `perSystem` | Core, which walks the registry and creates the output builders. An extension publishes by declaring a `substrate.publish` key and registering it here |
 | `substrate.settings.wrappers.contributors` | `{ config, hostcfg, usercfg, inputs, pkgs, lib, wrapLib, forwarded }`, then the whole resolved spec | The `wrappers` extension — each entry at key `foo` adds what it contributes to any wrapper that names `foo.*` (e.g., `jail` registers `bubblewrap` → `wrap { bubblewrap.permissions = …; }`) |
 
 Each contributor entry declares the `class` it targets and a `contribute`

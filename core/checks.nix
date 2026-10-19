@@ -4,30 +4,38 @@
   ...
 }:
 let
-  inherit (config.substrate) settings;
-  allModules = config.substrate.moduleFinders.all.find [ ];
+  slib = config.substrate.lib;
 
-  validateModuleClasses =
+  # The tree's freeform type cannot distinguish a module written for a class
+  # nobody registered from a legitimate grouping node -- both are the same
+  # shape -- so what is checkable is whether any finder can select the node at
+  # all. A node no finder can select is dropped from every build with no error
+  # of its own, which is why this warns rather than passing silently.
+  #
+  # The usual cause is a module written under a class whose extension is not
+  # imported: `substrate.modules.programs.zfs.darwin = { ... }` with no darwin
+  # extension reads as a plain nested node, and every class then finds nothing
+  # under it.
+  validateModuleReachability =
     let
-      allClasses = [ "generic" ] ++ settings.supportedClasses;
-      modulesWithUnsupportedClasses = lib.filter (
-        m:
-        let
-          # Dynamically check all supported classes instead of hardcoding
-          usedClasses = lib.filter (c: m ? ${c} && m.${c} != null) allClasses;
-          unsupportedClasses = lib.filter (c: !(lib.elem c allClasses)) usedClasses;
-        in
-        unsupportedClasses != [ ]
-      ) allModules;
+      unreachable = slib.unreachableModulePaths config.substrate.modules;
     in
     {
-      name = "module-classes";
-      valid = modulesWithUnsupportedClasses == [ ];
+      name = "module-reachability";
+      valid = unreachable == [ ];
+      warn = true;
       message =
-        if modulesWithUnsupportedClasses == [ ] then
-          "All modules use supported classes only"
+        if unreachable == [ ] then
+          "Every module in the tree is reachable by some supported class"
         else
-          "Found ${toString (lib.length modulesWithUnsupportedClasses)} modules using unsupported classes";
+          let
+            details = lib.concatStringsSep "\n" (lib.map (p: "  - ${p}") unreachable);
+            hint =
+              " If a module was written under a class whose extension is not"
+              + " imported, that class is not in supportedClasses and nothing"
+              + " will build it.";
+          in
+          "Found ${toString (lib.length unreachable)} module paths that no supported class reaches:\n${details}${hint}";
     };
 
   validateHostUsers =
@@ -93,7 +101,7 @@ in
 
   config.substrate = {
     settings.checks = [
-      validateModuleClasses
+      validateModuleReachability
       validateHostUsers
     ];
 

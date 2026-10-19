@@ -150,8 +150,26 @@ in
     default = [ ];
   };
 
+  # Declared here rather than by a publishing extension: the type that fits
+  # NixOS modules is this extension's to state, and a module that is not one
+  # should fail at this path instead of shipping a broken nixosModules output.
+  options.substrate.publish.nixosModules = lib.mkOption {
+    type = lib.types.attrsOf slib.publishedModuleType;
+    default = { };
+    description = ''
+      NixOS modules exposed to consumers under the `nixosModules` output. Was
+      `substrate.modules.publish.nixosModules`.
+    '';
+  };
+
   config.substrate = {
     settings.supportedClasses = [ "nixos" ];
+
+    settings.publishers.nixosModules = {
+      scope = "global";
+      output = "nixosModules";
+      build = { substrate, ... }: substrate.publish.nixosModules;
+    };
 
     outputs.global.nixosConfigurations = [
       {

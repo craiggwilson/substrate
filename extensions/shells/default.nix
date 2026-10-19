@@ -6,7 +6,7 @@
   ...
 }:
 let
-  shellsCfg = config.substrate.shells or { };
+  publishCfg = config.substrate.publish.devShells or { };
 
   entryType = lib.types.either (lib.types.functionTo lib.types.raw) lib.types.path;
 
@@ -37,39 +37,37 @@ let
   runEntry = entry: context: if lib.isFunction entry then entry context else import entry context;
 
   mkShells = args: lib.mapAttrs (_: entry: runEntry entry (entryArgs args)) args.shells;
-
-  published = shellsCfg.publish or { };
 in
 {
   # Entries are named by their attribute key, so a shell is called what you wrote
   # rather than what its file was called.
-  options.substrate.shells = {
-    internal = lib.mkOption {
-      type = lib.types.attrsOf entryType;
-      default = { };
-      description = ''
-        Shells substrate defines but does not publish, as a name-to-entry
-        attribute set. An entry is either a path to a shell definition, which is
-        imported with { pkgs, system, lib, inputs, substrate }, or a function of
-        the same set.
-      '';
-    };
-
-    publish = lib.mkOption {
-      type = lib.types.attrsOf entryType;
-      default = { };
-      description = ''
-        Shells exposed to consumers under the `devShells` output, as a
-        name-to-entry attribute set. An entry is either a path to a shell
-        definition, which is imported with
-        { pkgs, system, lib, inputs, substrate }, or a function of the same set.
-      '';
-    };
+  options.substrate.shells = lib.mkOption {
+    type = lib.types.attrsOf entryType;
+    default = { };
+    description = ''
+      Shell definitions available to this configuration. An entry is either a
+      path to a shell definition, which is imported with
+      { pkgs, system, lib, inputs, substrate }, or a function of the same set.
+      Shells are exposed to consumers only when assigned under
+      `substrate.publish.devShells`.
+    '';
   };
 
-  config.substrate.outputs.perSystem.devShells = lib.mkIf (published != { }) [
-    {
-      build = args: mkShells (args // { shells = published; });
-    }
-  ];
+  options.substrate.publish.devShells = lib.mkOption {
+    type = lib.types.attrsOf entryType;
+    default = { };
+    description = ''
+      Shells exposed to consumers under the `devShells` output, as a
+      name-to-entry attribute set. An entry is either a path to a shell
+      definition, which is imported with
+      { pkgs, system, lib, inputs, substrate }, or a function of the same set.
+      Was `substrate.shells.publish`.
+    '';
+  };
+
+  config.substrate.settings.publishers.devShells = {
+    scope = "perSystem";
+    output = "devShells";
+    build = args: mkShells (args // { shells = publishCfg; });
+  };
 }
