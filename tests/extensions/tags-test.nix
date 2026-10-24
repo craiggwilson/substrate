@@ -29,18 +29,18 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "core"
                 "other"
               ];
             }
           ];
           # After apply, each entry should be an attrset
-          inherit (eval.config.substrate.settings.tags) options;
+          inherit (eval.config.substrate.settings.tags) definitions;
         in
-        builtins.isList options
-        && builtins.length options == 2
-        && builtins.isAttrs (builtins.elemAt options 0);
+        builtins.isList definitions
+        && builtins.length definitions == 2
+        && builtins.isAttrs (builtins.elemAt definitions 0);
     };
 
     # Test 2: Metatags with implications work
@@ -49,15 +49,15 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "laptop"
                 { "hardware:dell" = [ "laptop" ]; }
               ];
             }
           ];
-          inherit (eval.config.substrate.settings.tags) options;
+          inherit (eval.config.substrate.settings.tags) definitions;
         in
-        builtins.length options == 2;
+        builtins.length definitions == 2;
     };
 
     # Test 3: Parent prefixes are automatically implied
@@ -66,7 +66,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "theming"
                 "theming:catppuccin"
               ];
@@ -89,7 +89,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "laptop"
                 { "hardware:dell" = [ "typo-tag" ]; } # "typo-tag" is not declared
               ];
@@ -115,12 +115,12 @@ let
       check =
         let
           eval = evalSubstrate [
-            { config.substrate.settings.tags.options = [ "core" ]; }
-            { config.substrate.settings.tags.options = [ "other" ]; }
+            { config.substrate.settings.tags.definitions = [ "core" ]; }
+            { config.substrate.settings.tags.definitions = [ "other" ]; }
           ];
-          inherit (eval.config.substrate.settings.tags) options;
+          inherit (eval.config.substrate.settings.tags) definitions;
         in
-        builtins.length options == 2;
+        builtins.length definitions == 2;
     };
 
     # Test 6: Same tag with implications merges correctly
@@ -129,7 +129,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "portable"
                 "lightweight"
                 "laptop"
@@ -137,15 +137,15 @@ let
               ];
             }
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 { "laptop" = [ "lightweight" ]; }
               ];
             }
           ];
           # This should work - laptop should imply both portable and lightweight
-          inherit (eval.config.substrate.settings.tags) options;
+          inherit (eval.config.substrate.settings.tags) definitions;
         in
-        builtins.length options == 5; # 3 strings + 2 metatags
+        builtins.length definitions == 5; # 3 strings + 2 metatags
     };
 
     # Test 7: Modules are filtered by tags correctly
@@ -154,7 +154,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "core"
                 "extra"
               ];
@@ -183,7 +183,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [ "core" ];
+              config.substrate.settings.tags.definitions = [ "core" ];
               config.substrate.modules.programs.always = {
                 nixos = { };
                 # No tags - should always be included
@@ -209,7 +209,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "desktop"
                 "desktop:custom"
                 "desktop:custom:hyprland"
@@ -243,7 +243,7 @@ let
           evalDotted = evalSubstrate [
             {
               config.substrate.settings.tags.separator = ".";
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "audio"
                 "audio.prod"
                 "audio.prod.midi"
@@ -261,7 +261,7 @@ let
           # a parent of nothing and is reported unused.
           evalDefault = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "audio"
                 "audio.prod"
                 "audio.prod.midi"
@@ -288,7 +288,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "gui"
                 "fonts"
                 { "gui" = [ "fonts" ]; }
@@ -319,10 +319,10 @@ let
       check =
         let
           eval = evalSubstrate [
-            { config.substrate.settings.tags.options = [ ]; }
+            { config.substrate.settings.tags.definitions = [ ]; }
           ];
         in
-        eval.config.substrate.settings.tags.options == [ ];
+        eval.config.substrate.settings.tags.definitions == [ ];
     };
 
     # Test 12: Prefix matching for hasTag works
@@ -331,7 +331,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "theming"
                 "theming:catppuccin"
                 "theming:catppuccin:mocha"
@@ -354,6 +354,140 @@ let
         in
         # hasTag should work for the exact tag and parent prefixes
         args.hasTag "theming:catppuccin:mocha" && args.hasTag "theming:catppuccin" && args.hasTag "theming";
+    };
+
+    # Test 13: Named selectors filter modules using boolean expressions
+    selectorsFilterModules = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.settings.tags.definitions = [
+                "common"
+                "desktop"
+                "laptop"
+              ];
+              config.substrate.settings.tags.selectors.workstation = {
+                and = [
+                  "common"
+                  {
+                    or = [
+                      "desktop"
+                      "laptop"
+                    ];
+                  }
+                ];
+              };
+              config.substrate.settings.tags.selectors.laptopOnly = {
+                and = [ "laptop" ];
+              };
+              config.substrate.modules.programs.included = {
+                nixos = { };
+                tags = [ "workstation" ];
+              };
+              config.substrate.modules.programs.excluded = {
+                nixos = { };
+                tags = [ "laptopOnly" ];
+              };
+              config.substrate.users.testuser.tags = [
+                "common"
+                "desktop"
+              ];
+            }
+          ];
+          found = eval.config.substrate.moduleFinders.by-tags.find [ eval.config.substrate.users.testuser ];
+        in
+        lib.length found == 1;
+    };
+
+    # Test 14: Selectors support negation without changing concrete tags
+    selectorNegationWorks = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.settings.tags.definitions = [
+                "desktop"
+                "server"
+              ];
+              config.substrate.settings.tags.selectors.desktopOnly = {
+                and = [
+                  "desktop"
+                  { not = "server"; }
+                ];
+              };
+              config.substrate.modules.programs.desktopOnly = {
+                nixos = { };
+                tags = [ "desktopOnly" ];
+              };
+              config.substrate.users.testuser.tags = [ "desktop" ];
+            }
+          ];
+          found = eval.config.substrate.moduleFinders.by-tags.find [ eval.config.substrate.users.testuser ];
+        in
+        lib.length found == 1;
+    };
+
+    # Test 15: hasTag evaluates named selectors
+    hasTagSelectorWorks = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.settings.tags.definitions = [
+                "desktop"
+                "laptop"
+              ];
+              config.substrate.settings.tags.selectors.graphical = {
+                or = [
+                  "desktop"
+                  "laptop"
+                ];
+              };
+              config.substrate.users.testuser.tags = [ "desktop" ];
+            }
+          ];
+          inherit (eval.config.substrate.settings) extraArgsGenerators;
+          args = lib.mergeAttrsList (
+            builtins.map (
+              f:
+              f {
+                hostcfg = null;
+                usercfg = eval.config.substrate.users.testuser;
+              }
+            ) extraArgsGenerators
+          );
+        in
+        args.hasTag "graphical";
+    };
+
+    # Test 16: Invalid selector leaves are rejected when the finder is used
+    invalidSelectorRejected = {
+      check =
+        let
+          eval = evalSubstrate [
+            {
+              config.substrate.settings.tags.definitions = [ "desktop" ];
+              config.substrate.settings.tags.selectors.broken = {
+                or = [
+                  "missing"
+                  "desktop"
+                ];
+              };
+              config.substrate.modules.programs.test = {
+                nixos = { };
+                tags = [ "broken" ];
+              };
+              config.substrate.users.testuser.tags = [ "desktop" ];
+            }
+          ];
+          result = builtins.tryEval (
+            builtins.deepSeq (eval.config.substrate.moduleFinders.by-tags.find [
+              eval.config.substrate.users.testuser
+            ]) true
+          );
+        in
+        !result.success;
     };
   };
 in

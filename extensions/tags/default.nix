@@ -1,7 +1,8 @@
 { lib, config, ... }:
 let
   finderName = "by-tags";
-  rawTags = config.substrate.settings.tags.options;
+  rawTags = config.substrate.settings.tags.definitions;
+  selectors = config.substrate.settings.tags.selectors;
   separator = config.substrate.settings.tags.separator;
   slib = config.substrate.lib;
 
@@ -37,6 +38,55 @@ let
     else
       throw "Invalid implied tags: ${builtins.toString invalidImpliedTags}. All implied tags must be explicitly declared.";
 
+  selectorOperators = [
+    "and"
+    "not"
+    "or"
+  ];
+
+  selectorErrors =
+    let
+      collidingNames = lib.filter (name: lib.elem name allTagNames) (builtins.attrNames selectors);
+
+      validate =
+        path: expression:
+        if builtins.isString expression then
+          if builtins.elem expression allTagNames then [ ] else [ "${path}: unknown tag '${expression}'" ]
+        else if builtins.isAttrs expression then
+          let
+            keys = builtins.attrNames expression;
+            operator = if builtins.length keys == 1 then builtins.head keys else null;
+            value = if operator == null then null else expression.${operator};
+          in
+          if builtins.length keys != 1 then
+            [ "${path}: selector expressions must contain exactly one of 'and', 'or', or 'not'" ]
+          else if !(builtins.elem operator selectorOperators) then
+            [ "${path}: unknown selector operator '${operator}'" ]
+          else if operator == "not" then
+            if builtins.isList value then
+              [ "${path}.not: expected one expression, not a list" ]
+            else
+              validate "${path}.not" value
+          else if !(builtins.isList value) then
+            [ "${path}.${operator}: expected a list of expressions" ]
+          else if value == [ ] then
+            [ "${path}.${operator}: expected at least one expression" ]
+          else
+            lib.concatMap (item: validate "${path}.${operator}" item) value
+        else
+          [ "${path}: expected a tag name or selector expression" ];
+    in
+    lib.map (name: "selector '${name}': name collides with a concrete tag") collidingNames
+    ++ lib.concatMap (name: validate "selector '${name}'" selectors.${name}) (
+      builtins.attrNames selectors
+    );
+
+  validatedSelectors =
+    if selectorErrors == [ ] then
+      selectors
+    else
+      throw "Invalid tag selectors:\n${lib.concatStringsSep "\n" selectorErrors}";
+
   # Recursively expands a tag to include all implied tags and parent prefixes.
   # Uses a 'seen' set to prevent infinite loops from circular implications.
   expandTag =
@@ -65,16 +115,36 @@ let
   validAll =
     x: xs:
     if builtins.isString x then
-      validSingle x xs
+      if builtins.elem x (builtins.attrNames selectors) then
+        validSelector validatedSelectors.${x} xs
+      else
+        validSingle x xs
     else if builtins.isList x then
       builtins.all (e: validAll e xs) x
+    else
+      false;
+
+  validSelector =
+    expression: xs:
+    if builtins.isString expression then
+      validSingle expression xs
+    else if builtins.isAttrs expression then
+      let
+        operator = builtins.head (builtins.attrNames expression);
+        value = expression.${operator};
+      in
+      if operator == "and" then
+        builtins.all (item: validSelector item xs) value
+      else if operator == "or" then
+        builtins.any (item: validSelector item xs) value
+      else
+        !(validSelector value xs)
     else
       false;
 
   tagsType = lib.types.listOf (lib.types.enum validatedTagNames);
 
   tagsFromAttrs = attrs: attrs.tags or [ ];
-
   filterByTags =
     tags: modules:
     lib.filter (m: builtins.deepSeq (tagsFromAttrs m) (validAll (tagsFromAttrs m) tags)) modules;
@@ -94,7 +164,12 @@ let
     in
     expandTags (slib.unique (hostTags ++ userTags));
 
-  mkHasTag = tags: tag: builtins.any (t: lib.strings.hasPrefix tag t) tags;
+  mkHasTag =
+    tags: tag:
+    if builtins.elem tag (builtins.attrNames selectors) then
+      validSelector validatedSelectors.${tag} tags
+    else
+      validSingle tag tags;
 in
 {
   options.substrate = {
@@ -130,21 +205,30 @@ in
           '';
         };
 
-        # Was `substrate.settings.tags` before this moved to make room for
-        # `separator` alongside it.
-        options = lib.mkOption {
+        definitions = lib.mkOption {
           type = lib.types.listOf (
             lib.types.either lib.types.str (lib.types.attrsOf (lib.types.listOf lib.types.str))
           );
           apply = list: lib.map (item: if builtins.isString item then { ${item} = [ ]; } else item) list;
           description = ''
-            All the tags available for use. A list where each element can be:
+            All the tag definitions available for use. A list where each element can be:
             - A simple string: "tag1" (tag with no implications)
             - A metatag attrset: `{ "hardware:dell" = [ "laptop" "thunderbolt" ]; }`
             When a host/user has a metatag, all implied tags are automatically included.
             After apply, all elements are normalized to attrset format for merging.
           '';
           default = [ ];
+        };
+
+        selectors = lib.mkOption {
+          type = lib.types.attrsOf lib.types.anything;
+          description = ''
+            Named boolean requirements used only for module filtering. Selector
+            expressions may contain concrete tag names and one of `and`, `or`,
+            or `not` at each expression level. Selectors are not tags and cannot
+            be assigned to hosts or users.
+          '';
+          default = { };
         };
       };
     };
@@ -172,13 +256,15 @@ in
         in
         # Force evaluation of validatedTagNames to trigger validation errors early
         builtins.seq validatedTagNames (
-          filterByTags (expandTags allTags) (config.substrate.moduleFinders.all.find cfgs)
+          builtins.seq validatedSelectors (
+            filterByTags (expandTags allTags) (config.substrate.moduleFinders.all.find cfgs)
+          )
         );
     };
 
     settings = {
       extraModuleOptions.tags = lib.mkOption {
-        type = tagsType;
+        type = lib.types.listOf (lib.types.enum (validatedTagNames ++ builtins.attrNames selectors));
         description = "The tags required to enable this module.";
         default = [ ];
       };
@@ -201,7 +287,9 @@ in
                 m:
                 let
                   moduleTags = m.tags or [ ];
-                  invalidTags = lib.filter (t: !(lib.elem t validatedTagNames)) moduleTags;
+                  invalidTags = lib.filter (
+                    t: !(lib.elem t (validatedTagNames ++ builtins.attrNames selectors))
+                  ) moduleTags;
                 in
                 invalidTags != [ ]
               ) allModules;
@@ -220,6 +308,16 @@ in
                   in
                   "Found modules with invalid tags:\n${details}";
             };
+
+          validateTagSelectors = {
+            name = "tag-selectors";
+            valid = selectorErrors == [ ];
+            message =
+              if selectorErrors == [ ] then
+                "All tag selectors are valid"
+              else
+                "Found invalid tag selectors:\n${lib.concatStringsSep "\n" selectorErrors}";
+          };
 
           validateHostTags =
             let
@@ -335,7 +433,11 @@ in
               # Reuse the top-level parentPrefixes function
               expandWithPrefixes = tags: slib.unique (tags ++ lib.flatten (lib.map parentPrefixes tags));
 
-              moduleTagsUsed = expandWithPrefixes (lib.flatten (lib.map (m: m.tags or [ ]) allModules));
+              moduleTagsUsed = expandWithPrefixes (
+                lib.filter (tag: lib.elem tag validatedTagNames) (
+                  lib.flatten (lib.map (m: m.tags or [ ]) allModules)
+                )
+              );
 
               hostTagsUsed = expandWithPrefixes (
                 lib.flatten (lib.mapAttrsToList (_: h: h.tags or [ ]) config.substrate.hosts)
@@ -361,14 +463,39 @@ in
                 else
                   "Found unreferenced tags: ${toString unusedTags}";
             };
+
+          selectorNamesUsed = lib.unique (
+            lib.filter (name: lib.elem name (builtins.attrNames selectors)) (
+              lib.flatten (lib.map (m: m.tags or [ ]) allModules)
+            )
+          );
+
+          validateUnusedSelectors =
+            let
+              unusedSelectors = lib.filter (name: !(lib.elem name selectorNamesUsed)) (
+                builtins.attrNames selectors
+              );
+            in
+            {
+              name = "unused-tag-selectors";
+              valid = unusedSelectors == [ ];
+              warn = true;
+              message =
+                if unusedSelectors == [ ] then
+                  "All tag selectors are referenced"
+                else
+                  "Found unreferenced tag selectors: ${toString unusedSelectors}";
+            };
         in
         [
           validateModuleTags
+          validateTagSelectors
           validateHostTags
           validateUserTags
           validateImpliedTags
           validateCircularTags
           validateUnusedTags
+          validateUnusedSelectors
         ];
     };
   };

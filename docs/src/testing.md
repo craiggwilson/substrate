@@ -160,7 +160,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [ "core" ];
+              config.substrate.settings.tags.definitions = [ "core" ];
               config.substrate.modules.test = {
                 nixos = { };
                 tags = [ "core" ];
@@ -211,7 +211,7 @@ tests = {
       let
         eval = evalSubstrate [
           {
-            config.substrate.settings.tags.options = [ "core" "extra" ];
+              config.substrate.settings.tags.definitions = [ "core" "extra" ];
             config.substrate.modules.included = {
               nixos = { };
               tags = [ "core" ];
@@ -299,11 +299,11 @@ optionsMerge = {
   check =
     let
       eval = evalSubstrate [
-        { config.substrate.settings.tags.options = [ "a" ]; }
-        { config.substrate.settings.tags.options = [ "b" ]; }
+        { config.substrate.settings.tags.definitions = [ "a" ]; }
+        { config.substrate.settings.tags.definitions = [ "b" ]; }
       ];
     in
-    lib.length eval.config.substrate.settings.tags.options == 2;
+    lib.length eval.config.substrate.settings.tags.definitions == 2;
 };
 ```
 

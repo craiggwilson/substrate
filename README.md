@@ -91,7 +91,7 @@ With flakes and flake-parts:
       ];
 
       substrate = {
-        settings.tags.options = [ "core" "desktop" "laptop" ];
+        settings.tags.definitions = [ "core" "desktop" "laptop" ];
 
         users.alice = {
           tags = [ "desktop" ];

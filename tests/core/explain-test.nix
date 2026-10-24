@@ -78,7 +78,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "base"
                 "never"
               ];
@@ -106,7 +106,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "base"
                 "never"
               ];
@@ -134,7 +134,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "base"
                 "never"
               ];

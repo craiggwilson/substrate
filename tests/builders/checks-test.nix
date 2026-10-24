@@ -58,7 +58,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "core"
                 "gui"
               ];
@@ -78,7 +78,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "desktop"
                 "laptop"
               ];
@@ -134,7 +134,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [
+              config.substrate.settings.tags.definitions = [
                 "core"
                 "gui"
                 "cli"
@@ -164,7 +164,7 @@ let
         let
           eval = evalSubstrate [
             {
-              config.substrate.settings.tags.options = [ "core" ];
+              config.substrate.settings.tags.definitions = [ "core" ];
               config.substrate.modules.programs.test = {
                 nixos = { };
               };
