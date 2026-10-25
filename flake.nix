@@ -99,7 +99,7 @@
       inherit (substrate) substrateModules;
     }
     // {
-      formatter = forAllSystems (pkgs: (treefmt pkgs.system).config.build.wrapper);
+      formatter = forAllSystems (pkgs: (treefmt pkgs.stdenv.hostPlatform.system).config.build.wrapper);
 
       packages = forAllSystems (pkgs: {
         docs = docsBook pkgs;
@@ -173,7 +173,7 @@
           docs = docsBook pkgs;
 
           # Formatting/linting. Runs the same tools as `nix fmt`.
-          fmt = (treefmt pkgs.system).config.build.check self;
+          fmt = (treefmt pkgs.stdenv.hostPlatform.system).config.build.check self;
         }
       );
     };
