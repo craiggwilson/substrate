@@ -103,6 +103,13 @@ in
           Type = "oneshot";
           RemainAfterExit = true;
           ExecStart = "${materializerDrv}/bin/secretspec-materialize-files";
+          # Provider backends (1Password, ...) need working DNS, which on
+          # tunnel-managed hosts only exists once the tunnel daemon has
+          # connected — a race network-online.target does not cover, and a
+          # single failure here kills every dependent unit at boot. Retry
+          # until the network catches up instead.
+          Restart = "on-failure";
+          RestartSec = 15;
           Environment = [
             "SECRETSPEC_FILE=${manifestPath}"
             "XDG_CONFIG_HOME=${xdgRoot}"
